@@ -1,0 +1,54 @@
+body {
+    background: #e6e6e6;
+}
+.notepad {
+    background: #f6f6f6;
+    box-shadow: 0 1px 4px hsla(0,0%,0%,.25);
+    margin: 50px auto;
+    position: relative;
+    width: 650px;
+    background-position: 6px 6px, 6px 5px, 50% 18px;
+    background-repeat: repeat-y, repeat-y, repeat;
+    background-size: 48px 48px, 48px 48px, 24px 24px;
+    padding: 48px 24px 24px 84px;
+}
+.notepad:after {
+    border-left: 1px solid #e6e6e6;
+    border-right: 1px solid #e6e6e6;
+    bottom: 0;
+    content: '';
+    left: 58px;
+    position: absolute;
+    top: 0;
+    width: 2px;
+}
+p {
+    color: #333;
+    font: 16px/24px serif;
+    margin-bottom: 24px;
+}
+p:first-child:first-line {
+    font-variant: small-caps;
+}
+p:first-child:first-letter {
+    color: #444;
+    float: left;
+    font: bold 48px/48px serif;
+    padding-right: 12px;
+}
+ul {
+    color: #333;
+    font: italic 16px/24px serif;
+    line-height: 24px;
+    -webkit-column-count: 2;
+       -moz-column-count: 2;
+            column-count: 2;
+}
+footer {
+    margin: 50px auto;
+    position: relative;
+    width: 750px;
+    color: #333;
+    font: 14px/22px serif;
+    margin-bottom: 24px;
+}
