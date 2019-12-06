@@ -28,6 +28,8 @@ p {
     margin-bottom: 24px;
 }
 p:first-child:first-line {
+    color: #444;
+    font: bold 24px/48px serif;
     font-variant: small-caps;
 }
 p:first-child:first-letter {
@@ -36,6 +38,12 @@ p:first-child:first-letter {
     font: bold 48px/48px serif;
     padding-right: 12px;
 }
+ol {
+    list-style: square outside none;
+    color: #333;
+    font: italic 16px/24px serif;
+    line-height: 24px;
+}
 ul {
     color: #333;
     font: italic 16px/24px serif;
@@ -43,6 +51,7 @@ ul {
     -webkit-column-count: 2;
        -moz-column-count: 2;
             column-count: 2;
+    list-style: none;
 }
 footer {
     margin: 50px auto;
