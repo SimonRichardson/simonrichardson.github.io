@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+ <title>Simon Richardson: Articles</title>
+
+ <item>
+  <title>Inversion of Use</title>
+  <description>In the last 2 years working a Canonical on the Juju project, I've started formulate concrete ideas about how to program systems at large in go. Your mileage may vary when I come to discuss my ideas about go, but it has helped me reason about one of the largest open source go projects there is.</description>
+  <link>https://gistlog.co/SimonRichardson/e73658e4ce18a1c782dde3a49eff8c93</link>
+  <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
+ </item>
+
+ <item>
+  <title>Dependencies</title>
+  <description>These are my dependencies. There are many like them but these ones are mine. My dependencies are my best friends. It is my life. I must master them as I must master my life. Without me, my dependencies are useless. Without my dependencies I am useless.</description>
+  <link>https://gistlog.co/SimonRichardson/aeec3cc956c119223cecb07e9dbeec86</link>
+  <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
+ </item>
+
+ <item>
+  <title>Consistency</title>
+  <description>This is a short article about why I believe consistency is paramount. In fact I believe consistency is so valuable to a team, that the lack of it can cause a lack of coherency and can slow the velocity of projects to a snails pace.</description>
+  <link>https://gistlog.co/SimonRichardson/ac3ade8fa889186ffeeae3d51b57e706</link>
+  <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
+ </item>
+</channel>
+</rss>

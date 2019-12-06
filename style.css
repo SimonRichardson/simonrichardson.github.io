@@ -61,3 +61,6 @@ footer {
     font: 14px/22px serif;
     margin-bottom: 24px;
 }
+footer a {
+    float: right;
+}
