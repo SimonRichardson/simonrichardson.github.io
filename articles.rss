@@ -4,6 +4,13 @@
  <title>Simon Richardson: Articles</title>
 
  <item>
+  <title>All aboard</title>
+  <description>Recently I have experienced a few interesting on boarding to companies, mainly because of new hiring and contracting experiences.</description>
+  <link>https://gistlog.co/SimonRichardson/1a0f1163c96496746720f62a30a528a5</link>
+  <pubDate>Tuesday, 19 June 2018 16:38:20 +0000</pubDate>
+ </item>
+
+ <item>
   <title>A story about gossip members & a consistent hash-ring</title>
   <description>In what seems like a life time ago, I was tasked with load testing a series of application clusters to understand the characteristics of the clusters with certain load profiles.</description>
   <link>https://gistlog.co/SimonRichardson/bf87c02b00984d2adf63fd7678cdfff7</link>
