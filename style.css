@@ -1,66 +1,48 @@
 body {
-    background: #e6e6e6;
+    background: #ede4da;
+    color: #1b1b1b;
+    font-size: 14px;
+    margin: 1.5em 100px 100px 6em;
 }
-.notepad {
-    background: #f6f6f6;
-    box-shadow: 0 1px 4px hsla(0,0%,0%,.25);
-    margin: 50px auto;
-    position: relative;
-    width: 650px;
-    background-position: 6px 6px, 6px 5px, 50% 18px;
-    background-repeat: repeat-y, repeat-y, repeat;
-    background-size: 48px 48px, 48px 48px, 24px 24px;
-    padding: 48px 24px 24px 84px;
+header {
+    font-family: monospace;
+    margin: 0 0 3em 0;
 }
-.notepad:after {
-    border-left: 1px solid #e6e6e6;
-    border-right: 1px solid #e6e6e6;
-    bottom: 0;
-    content: '';
-    left: 58px;
-    position: absolute;
-    top: 0;
-    width: 2px;
+header h1 a {
+    font-size: 0.8em;
+    text-decoration: none;
+    color: #1b1b1b;
+    margin: 0 0 0 2em;
 }
-p {
-    color: #333;
-    font: 16px/24px serif;
-    margin-bottom: 24px;
+header h1 a:first-child {
+    font-size: 1em;
+    margin: 0 0 0 0;
 }
-p:first-child:first-line {
-    color: #444;
-    font: bold 24px/48px serif;
-    font-variant: small-caps;
+h1 .cursor {
+    opacity: 0;
+    animation: blinker 1s linear infinite;
+    font-size: 0.9em;
+    margin: 0 0 0 0.1em;
 }
-p:first-child:first-letter {
-    color: #444;
-    float: left;
-    font: bold 48px/48px serif;
-    padding-right: 12px;
+@keyframes blinker {from, 49.9% {opacity: 0;} 50%, to {opacity: 1;}}
+article h2 {
+    font-family: monospace;
 }
-ol {
-    list-style: square outside none;
-    color: #333;
-    font: italic 16px/24px serif;
-    line-height: 24px;
+article ul li {
+    font-size: 1.2em;
+    line-height: 2em;
 }
-ul {
-    color: #333;
-    font: italic 16px/24px serif;
-    line-height: 24px;
-    -webkit-column-count: 2;
-       -moz-column-count: 2;
-            column-count: 2;
-    list-style: none;
+article .date {
+    color: #5c5c5c;
 }
 footer {
-    margin: 50px auto;
-    position: relative;
-    width: 750px;
-    color: #333;
-    font: 14px/22px serif;
-    margin-bottom: 24px;
+    font-family: monospace;
 }
 footer a {
+    margin: 0 0.2em 0 0;
     float: right;
+}
+footer hr {
+    border: none;
+    border-top: 1px solid #1b1b1b;
 }
