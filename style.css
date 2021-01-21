@@ -1,32 +1,107 @@
 body {
-    background: #ede4da;
+    background: #ddd4c9;
     color: #1b1b1b;
-    font-size: 14px;
-    margin: 1.5em 100px 100px 6em;
+    font-size: 15px;
+    font-family: monospace;
+    margin: 4em 6em;
 }
 header {
-    font-family: monospace;
     margin: 0 0 3em 0;
 }
-header h1 a {
-    font-size: 0.8em;
-    text-decoration: none;
+header a {
     color: #1b1b1b;
-    margin: 0 0 0 2em;
+    text-decoration: none;
 }
-header h1 a:first-child {
-    font-size: 1em;
-    margin: 0 0 0 0;
+header h1 {
+    padding-bottom: 4px;
+    border-bottom: 3px solid #1b1b1b;
+    margin: 0 0 1em 0;
 }
-h1 .cursor {
+header h1 a {
+    font-size: 1.6em;
+}
+header > a {
+    font-size: 2em;
+    padding-bottom: 2px;
+    border-bottom: 3px solid #1b1b1b;
+    margin: 0 0.5em 0 0;
+}
+header .cursor {
+    font-size: 0.9em;
     opacity: 0;
     animation: blinker 1s linear infinite;
-    font-size: 0.9em;
-    margin: 0 0 0 0.1em;
+    margin: 0 0 0 0.2em;
 }
-@keyframes blinker {from, 49.9% {opacity: 0;} 50%, to {opacity: 1;}}
-article h2 {
-    font-family: monospace;
+article dl {
+    margin: 0 0 0 3em;
+}
+article dl dt {
+    font-size: 1.2em;
+    line-height: 2em;
+    display: list-item;
+    list-style-type: disc;
+    list-style-position: outside;
+}
+article dl dd {
+    border: 3px solid #1b1b1b;
+    border-left: none;
+    border-right: none;
+    display: none;
+    columns: 3;
+    column-gap: 3em;
+    text-align: justify;
+    margin: 3em 6em 3em 0;
+    padding: 3em 0;
+}
+
+@media only screen and (max-width: 1600px) {
+    article dl dd {
+        columns: 2;
+    }
+}
+@media only screen and (max-width: 1200px) {
+    article dl dd {
+        columns: 1;
+    }
+}
+@media only screen and (max-width: 800px) {
+    article dl dd {
+        margin: 3em 0 3em -2em;
+    }
+}
+@media only screen and (max-width: 700px) {
+    article dl dd {
+        margin: 3em -0.5em 3em -3em;
+    }
+}
+@media only screen and (max-width: 600px) {
+    article dl dd {
+        margin: 3em -1em 3em -4em;
+    }
+}
+@media only screen and (max-width: 400px) {
+    article dl dd {
+        margin: 3em -2em 3em -5em;
+    }
+}
+article:first-of-type dl dd {
+    columns: 1;
+}
+
+
+article dl dd p:first-child {
+    margin: 0 auto auto auto;
+}
+article dl dd :first-child::first-letter {
+    font-size: 2em;
+}
+article dl dd p:not(:first-child) {
+    border-top: 3px dotted #cac0b3;
+    padding-top: 1em;
+}
+article ul {
+    margin: 0 0 0 3em;
+    padding: 0 0 0 0;
 }
 article ul li {
     font-size: 1.2em;
@@ -36,13 +111,32 @@ article .date {
     color: #5c5c5c;
 }
 footer {
-    font-family: monospace;
+    margin: 3em 0 0 0;
 }
-footer a {
+footer a:last-child {
     margin: 0 0.2em 0 0;
     float: right;
 }
 footer hr {
     border: none;
-    border-top: 1px solid #1b1b1b;
+    border-top: 3px solid #1b1b1b;
+}
+code {
+    background-color: #cac0b3;
+}
+blockquote {
+    padding: 1em;
+    background-color: #cac0b3;
+    font-style: italic;
+}
+
+@keyframes blinker {
+	from,
+	49.9% {
+		opacity: 0;
+	}
+	50%,
+	to {
+		opacity: 1;
+	}
 }

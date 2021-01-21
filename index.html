@@ -3,31 +3,661 @@
     <head>
         <title>Simon Richardson</title>
         <meta charset="utf-8">
+        <meta name="description" content="Simon Richardson, Software Engineer">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="style.css">
     </head>
     <body>
         <header>
             <h1>
                 <a href="/">Simon Richardson<span class="cursor">▉</span></a>
-                <a href="/articles.rss" title="Articles RSS">feed</a>
             </h1>
+            <a href="/" title="Home">home</a>
+            <a href="/" title="Projects" id="projects">projects</a>
+            <a href="/articles.rss" title="Articles RSS">feed</a>
         </header>
         <article>
+            <h2>Projects</h2>
+            <dl>
+                <dt><a href="https://convoyci.com/" title="Convoy CI Project">convoy</a></dt>
+                <dd>
+                    <p>
+                        Convoy reimagines continuous integration (CI) tooling, 
+                        by delivering new insights when testing code. Built on 
+                        a distributed database for commodity hardware whilst 
+                        not sacrificing performance and security in enterprise 
+                        settings.
+                    </p>
+                </dd>
+                <dt><a href="https://github.com/spoke-d" title="spoke-d Project">spoke-d</a></dt>
+                <dd>
+                    <p>
+                        Development of ongoing libraries to help solve problems 
+                        within distributed systems, including task management, 
+                        publish and subscribe (pubsub) and clustered databases.
+                    </p>
+                </dd>
+                <dt><a href="https://github.com/fantasyland" title="Fantasy Land Project">fantasy land</a></dt>
+                <dd>
+                    <p>
+                        Design and implementation of libraries that integrate 
+                        with a specification for interoperability of common 
+                        algebraic structures in Javascript, with the aim of 
+                        bringing a focus of functional programming to Javascript 
+                        developers.
+                    </p>
+                </dd>
+                <dt><a href="https://github.com/SimonRichardson/snowy" title="Snowy">snowy</a></dt>
+                <dd>
+                    <p>
+                        Snowy is a append only ledger for document contents, 
+                        that allow you to associate tags to a piece of content 
+                        that can be queryable from the rest end point. The 
+                        snowy application is split into two distinct parts, the 
+                        ledger and the associated content for that ledger entry.
+                    </p>
+                    <p>
+                        Modification of ledgers and contents is not possible, 
+                        instead new entities are required to be inserted in an 
+                        append only fashion, where a full revision and audit 
+                        trail can be viewed for each ledger.
+                    </p>
+                </dd>
+                <dt><a href="https://github.com/SimonRichardson/coherence" title="coherence">coherence</a></dt>
+                <dd>
+                    <p>
+                        Coherence is a limited Key/Value store, that aims to 
+                        provide high availability, with eventual consistency. 
+                        The limited aspect of the store is provided by a LRU so 
+                        that it can provide a windowed data set, that from the 
+                        outset guarantees to fit into smaller confined spaces.
+                    </p>
+                </dd>
+            </dl>
+        </article>
+        <article>
             <h2>Articles</h2>
+            <p>
+                Series of incoherent articles and thought diatribes, that may 
+                have some relevance to you...?
+            </p>
+            <dl>
+                <dt><a href="https://gistlog.co/SimonRichardson/03aae9d4c6d3c996ada8ecafb3fce1d7" title="Tooling">Tooling (draft)</a> <span class="date">(December 2019)</span></dt>
+                <dd>
+                    <p>
+                        I'm always surprised by the lack of tooling I find within software projects. 
+                        Let me clarify what I mean by tooling; anything that you could or should 
+                        automate, to make interaction with your project(s) simpler. I'm personally 
+                        always creating tooling, maybe to automate a yaml file or to parse some output 
+                        and display it in a more efficient manor.
+                    </p>
+                    <p>
+                        I find that these sorts of tools improve your productivity, I generally don't 
+                        spent vast amounts of time on them, normally time boxed to 1-2 hours. If they 
+                        start to take more time, I like to think there is a missing gap in the software 
+                        I'm writing. If I want to do something with the software I can guarantee 
+                        somebody else also wants to and so should at least understand the problem. That 
+                        doesn't mean you should fix the problem, but you can at least identify it's 
+                        short comings.
+                    </p>
+                    <p>
+                        In order to get buy in from others, share them, promote your productivity and 
+                        you never know, others can help your productivity.
+                    </p>
+                </dd>
+                <dt><a href="https://gistlog.co/SimonRichardson/ac3ade8fa889186ffeeae3d51b57e706" title="Consistency">Consistency</a> <span class="date"><span class="date">(December 2019)</span></dt>
+                <dd>
+                    <p>
+                        This is a short article about why I believe consistency is paramount. In 
+                        fact I believe consistency is so valuable to a team, that the lack of it can 
+                        cause a lack of coherency and can slow the velocity of projects to a snails 
+                        pace.
+                    </p>
+                    <p>
+                        We as programmers are creatures of habbit, if something looks the same, we 
+                        can reason about it at a much faster cadence (similar to 
+                        <a href="https://i.imgur.com/XYegJ3S.gif" title="Speed Reading">speed reading
+                            if the words don't move</a>. 
+                        I write a lot of go in my job and you can tell when someone doesn't use 
+                        <code>gofmt</code>, it makes something harder to read. It feels like something 
+                        is ever so slightly off. It may only be a slight change, but for me, it 
+                        affects how I can reason about that code as now I've trying to read more 
+                        about the words, rather than about the code. Similar tools to 
+                        <code>gofmt</code> have obviously helped other languages as well, as cross 
+                        pollination of the same idea has occurred.
+                    </p>
+                    <p>
+                        The key to this is that <i>all</i> the source code in a project should be 
+                        consistently formatted, you can't have a few files formatted and not others. 
+                        It's the same with naming, keeping names similar or following a guide to 
+                        naming helps. I can see how <a href="https://projects.haykranen.nl/java/" title="Java enterprise">Java enterprise</a>
+                        ended up with `FactoryFactoryFactoryBean`, unfortunately nobody took a step 
+                        back and tried to see if it was sensible to do that. Consistency is 
+                        paramount, but not for the sake of lunacy!
+                    </p>
+                    <p>
+                        The same goes for code in general. I'd go one step further and say if your 
+                        code is bad, you should keep it bad _unless_ you communicate with others 
+                        how to make it better or you should be consistent with your communication, 
+                        code comments, documentation, so that others can follow by your example and 
+                        make the consistently better.
+                    </p>
+                    <p>
+                        Reading the code and understanding the code you're changing is as important 
+                        to the code you're about to add. People often just make the changes and 
+                        don't reason about how the changes look or if it's consistent with it's 
+                        surroundings. 
+                    </p>
+                    <p>
+                        If people have an approach to getting better code through consistency then 
+                        they're not spending time wondering which approach is the right one.
+                    </p>
+                </dd>
+                <dt><a href="https://gistlog.co/SimonRichardson/aeec3cc956c119223cecb07e9dbeec86" title="Dependencies">Dependencies</a> <span class="date">(November 2019)</span></dt>
+                <dd>
+                    <blockquote>
+                        These are my dependencies. There are many like them but these ones are mine. 
+                        My dependencies are my best friends. It is my life. I must master them as I 
+                        must master my life. Without me, my dependencies are useless. Without my 
+                        dependencies I am useless.
+                    </blockquote>
+                    <p>
+                        In my last post I hinted at correctly modelling dependencies for code, so 
+                        for those that didn't read that, I'm mainly talking about what your instance 
+                        depends on, not what your application depends on. I'm sure I can wax lyrical 
+                        about that as well.
+                    </p>
+                    <p>
+                        Modelling software is probably the hardest thing to get right, what levels 
+                        should types be abstracted at and when and where encapsulation should 
+                        happen. Most of the time, it's trial and error, you make a guess at it and 
+                        you estimate what the right levels are and I bet for the immediate future 
+                        that's a safe bet! The problem with the modelling is that it doesn't always 
+                        pay off medium to long term. For software that is short lived (is there any, 
+                        really?) this might not be a problem, but for software that isn't, then 
+                        constantly refactoring as you go is not a bad approach.
+                    </p>
+                    <p>
+                        Modelling your dependencies correctly and by that I mean, ensure your 
+                        understand what your inputs and outputs are for a given procedure helps no 
+                        end. The aim I proclaim should be to model your procedure to not directly 
+                        interact with types that have side effects. This sounds incredibly 
+                        wishy-washy and very functional in nature, but it gives us some very 
+                        interesting fallout properties. If I know a procedure can't have any direct 
+                        side effects without interacting with the inputs or outputs then I can test 
+                        and reason about the code. We constrain what the procedure can do and we 
+                        liberate ourselves from complexities of reasoning.
+                    </p>
+                    <p>
+                        This very contrived example shows that our Foo.Run method doesn't do 
+                        anything special and we can easily reason about how the method works. Our 
+                        interfaces are small and we understand what they can do and how and the Run 
+                        method is easy to reason about, it takes the URL and passes it Do. Nothing 
+                        special, but that's the point! Looking at code that is special means there 
+                        is ambiguity and therefore can be harder to understand and that's when 
+                        maintaining the code because much more difficult.
+                    </p>
+                    <p>
+                        Unit tests for this code can easily created and 100% coverage can be 
+                        acquired.
+                    </p>
+                </dd>
+                <dt><a href="https://gistlog.co/SimonRichardson/e73658e4ce18a1c782dde3a49eff8c93" title="Inversion of Use">Inversion of Use</a> <span class="date">(November 2019)</span></dt>
+                <dd>
+                    <p>
+                        In the last 2 years working a Canonical on the Juju project, I've started 
+                        formulate concrete ideas about how to program systems at large in go. Your 
+                        mileage may vary when I come to discuss my ideas about go, but it has helped 
+                        me reason about one of the largest open source go projects there is.
+                    </p>
+                    <p>
+                        One gripe I've got about a lot of projects is the use of interfaces and how 
+                        they become an abstraction leakage and in the longer term, hinder how you 
+                        reason about your code. I believe that most interfaces that are imported 
+                        from another package are just plain wrong! Interfaces should be a point of 
+                        use (consuming side) and structs (offering side) should be the only 
+                        reasonable thing exported from your package.
+                    </p>
+                    <p>
+                        It shouldn't be about what you implement, it should be the inverse. The 
+                        interface should describe the dependency required to run or instantiate. 
+                        The inversion of use is especially hard to grasp, when you've come from an 
+                        OOP language like C# or Java, where you tell everybody upfront about what 
+                        you're going to align to. The problem with this model is that it can be 
+                        fragile. If the interface changes, it's on you to update your implementation 
+                        to align to that interface. Using a point of use interface means that you're 
+                        not susceptible to that problem directly, although you will once you try and 
+                        use the dependency. You could tackle this issue in two ways, by fixing the 
+                        interface to be in lockstep with your dependency or you create an 
+                        intermediary that adapts the dependency into your point of use interface. 
+                        The point here is that there is a flexibility given and more options to 
+                        choose from, than being in an immovable condition. You either implement the 
+                        new interface or you don't.
+                    </p>
+                    <p>
+                        Correctly modelling your dependencies is the heart of what go interfaces are 
+                        about. Having large interfaces that aren't used fully by a package breaks 
+                        the interface segregation principle. Go code should be easy to read and I 
+                        will state, reason about. Having additional dependencies that aren't used 
+                        prevents that from being easy and makes it harder to reason about what's in 
+                        use.
+                    </p>
+                    <p>
+                        Modeling a package dependencies carefully has its difficulties! Do you take 
+                        the methods you want to depend on in a wholesale way, or do you insert an 
+                        indirection layer; so you can control what you want to take as a dependency. 
+                        I have a strong believe that the latter is almost always what you want when 
+                        your dependencies aren't under your control. Although it requires more work, 
+                        as you have to correctly understand what you as a package need to make it 
+                        work, the dependency doesn't necessarily have to be 1-1 match. Akin to the 
+                        Adapter Pattern, the new wrapper can marshal in and out the correct input 
+                        or output for the new dependency. This makes your package more robust to 
+                        change from your external dependencies.
+                    </p>
+                    <p>
+                        Smaller interfaces allows you to provide smaller implementations. This is 
+                        the key take away! It is much easier to implement an interface if it's 
+                        small, having an endless list of methods becomes a tiresome, replication of 
+                        those methods becomes more difficult and in the end shortcuts are taken to 
+                        ease integration. Smaller interfaces also allow the ease of use when it 
+                        comes to testing, it's easy to create mock files for these interfaces and 
+                        concrete implementations can be found for these interfaces.
+                    </p>
+                    <p>
+                        Consider io.Reader or io.Writer from the std library, each one is easy to 
+                        satisfy and it's even possible to massage an implementation into the latter 
+                        interfaces, by the way they're designed.
+                    </p>
+                    <p>
+                        I should be allowed to move a package from one project to another 
+                        (substitution principle), without having to sort out a set of dependencies 
+                        that aren't just interfaces.
+                    </p>
+                    <p>
+                        All this sounds wonderful, but there are rough edges to this and they come 
+                        up surprisingly a lot when modelling software like this. The proliferation 
+                        of shims and how to deal with interface arguments for functions. The former 
+                        is something I see a lot of when coding go, it's something I'm guilty of a 
+                        lot. The problem I believe stems from the lack of modelling deeply nested 
+                        properties. The reason you need a shim is because you generally want to 
+                        align your code to an interface, but it can't align because of a return 
+                        type that is the wrong covariance. If we follow the idea that functions and 
+                        methods from a package return concrete types (structs, scalas, etc) and you 
+                        consume interfaces, then this gets you halfway. The other half is that you 
+                        end up exposing a nested structure that should be correctly modelled to be 
+                        less nested. Shims are a code smell and a anti-pattern that you're trying 
+                        to do too much with a type that either needs composing into something more 
+                        concrete or encapsulated into a type that is more sound architecturally. 
+                        The latter also helps solves that shim problem of interface arguments for 
+                        functions, as you can correctly encapsulate it in another function or type 
+                        that can correctly model the argument it takes from inside the package.
+                    </p>
+                    <p>
+                        Modelling software is hard, but leaking out interfaces means it's harder to 
+                        change the consuming side of the interface. Software changes all the time, 
+                        why make it any harder!
+                    </p>
+                </dd>
+                <dt><a href="https://gistlog.co/SimonRichardson/bf87c02b00984d2adf63fd7678cdfff7" title="A story about gossip members & a consistent hash-ring">A story about gossip members & a consistent hash-ring</a> <span class="date">(June 2018)</span></dt>
+                <dd>
+                    <p>
+                        In what seems like a life time ago, I was tasked with load testing a series 
+                        of application clusters to understand the characteristics of the clusters 
+                        with certain load profiles. Identifying what happens with each load profile 
+                        in a deterministic way, so that we can repeat them when new changes or 
+                        releases of software land. This sounds like a relatively easy challenge, 
+                        especially from the outside; instead I'm left longing for a better 
+                        understanding of some scenarios, so that I can reason about potential 
+                        problems in the future.
+                    </p>
+                    <p>
+                        At the heart of the cluster is a internal gossip members list, when any new 
+                        core service comes online it gossips to other gossip services. Each gossip 
+                        member internally tracks what it thinks is the state of affairs, so who has 
+                        joined, left or leaving. This slightly over simplifies the actual 
+                        interaction, but it's enough to describe the journey.
+                    </p>
+                    <p>
+                        Sitting in front of the gossip members list is a hash-ring, or specifically 
+                        a consistent hash-ring. The basic premise behind a consistent hash-ring in 
+                        this usage, is the ability to be able to query the ring with a key (the key 
+                        in this sense can be anything as long as we can hash it; URL, asset name or 
+                        a username) and return a member from the members list. The member that is 
+                        returned is the same member if the same key is supplied to the ring again. 
+                        Each member is also replicated multiple times when added to the ring, to 
+                        give better distribution around the ring.
+                    </p>
+                    <p>
+                        The ring should be able to tolerate the additions of members to the gossip 
+                        members list, as long as the underlying members don't diverge too much. 
+                        Understanding what is too much depends on the size of the ring and the 
+                        replication factors. Deletion of members should then attempt to evenly 
+                        distribute the results across the ring, so that hot spots shouldn't occur 
+                        on the ring. All the while stabilising to become eventually consistent 
+                        between each internal member and by that I mean, if there was no additions 
+                        or deletions over time, the state (checksum) of the ring should be identical 
+                        between members. Without ring stabilisation, each member will have a 
+                        different view of the members list (we assume some sort of sorting has 
+                        happened to prevent inconsistencies) and therefore will be inconsistent 
+                        when a query against the ring with a key is performed.
+                    </p>
+                    <p>
+                        Inconsistencies in the ring after changes to the members list doesn't matter 
+                        in the immediate future, because items stored in each member are relatively 
+                        short lived and also re-routing happens if nothing is found. As long as more 
+                        consistent results converge over time becoming eventually consistent the 
+                        better. Re-routing can be an expensive exercise, especially if the 
+                        re-routing requires going cross region.
+                    </p>
+                    <p>
+                        So when might a ring become unstable, it's best to describe what we mean by 
+                        ring instability. Given a time X, what is the state of the ring, then given 
+                        time Y what is the state of the ring at Y and as long as X and Y haven't 
+                        become unreasonable that comparing stability is nonsensical.
+                    </p>
+                    <p>
+                        Any change to the members list will cause ring instability. Given that this 
+                        is likely to happen, each member also gossips other information between 
+                        each node. Information might include their own ring state, latency between 
+                        members and what sort of load or data is on each. Building better heuristics 
+                        of members with in the list and hopefully allowing the members ring to 
+                        converge a little bit faster.
+                    </p>
+                    <p>
+                        Some of the load profiling tests where to see how well the clusters can 
+                        scale (up and down). The question we wanted to ask ourselves was; given a 
+                        series of load profiles what happens to both the members list and the 
+                        hash-ring state? Additionally do they converge over time and how long 
+                        did that take?
+                    </p>
+                    <p>
+                        Starting simply from adding one additional node to a single cluster with 10 
+                        nodes; each node had 5 services on each and each service registering with 
+                        the members list. The test ran successfully, adding the members in a timely 
+                        fast manor giving us a good convergence rate. Deletion of that node was even 
+                        better, as members un-registering themselves also notify the rest of the 
+                        members that it's going offline gracefully and should no longer be queried. 
+                        If any information about that node is gathered from the members list other 
+                        than deletion, we can assume is stale information and can be safely ignored. 
+                        Clean exiting is our best use case, it's simple and causes convergence of 
+                        ring state to become consistent in a short time frame.
+                    </p>
+                    <p>
+                        Repeating that setup multiple times showed that given a low traffic ambient 
+                        environment, addition and deletion of singular nodes is deterministic and 
+                        can be even consistently timed for completion.
+                    </p>
+                    <p>
+                        What became somewhat surprising when repeating the exercise, with more load 
+                        the time to stabilise was harder to determine. The load in question wasn't 
+                        heavy and nothing matching peek observed load, but was a nice consistent 
+                        flat 100MBps after an initial ramp up. Previously the ambient load tests 
+                        showed that we could approximate when a ring would become stable, but this 
+                        wasn't so with the new tests. Although we could put an upper bound on this, 
+                        sometimes the addition of a member would take almost twice as long. Deletion 
+                        wasn't hit as badly, but nether the less, it wasn't as deterministic. There 
+                        was no way to judge when the ring would be stable, only to stay it became 
+                        stable with X time frame.
+                    </p>
+                    <p>
+                        Instead of stopping with what we had, we wanted to see what would happen 
+                        if we ramped up the cluster, going multi-region and utilising 100 nodes, 
+                        each with 5 services on them and adding 50 more nodes. How fast can we add 
+                        the nodes and how long did they become stable. From our previous tests we 
+                        knew the fastest time we would expect this to happen, so we weren't 
+                        expecting less than that.
+                    </p>
+                    <p>
+                        Not surprisingly it was almost impossible to stabilise with this many 
+                        nodes. The time to add nodes just caused new a cyclic regurgitation of 
+                        never ending ring changes. Stabilisation sometimes happened, but most 
+                        often it didn't. In fact we left a ring to attempt to stabilise over an 
+                        hour (we went for lunch) and when we got back, it was still churning a way.
+                    </p>
+                    <p>
+                        There was something inherently wrong with the system! The design of the 
+                        system took into account what it's own view of the world looked like, but 
+                        also the view of others. Other participants ring state would be broadcast 
+                        to other ring members (not via gossip) to allow a comparison check to 
+                        happen. The whole aim of this secondary setup was to be able to check for a 
+                        couple of things; split brains or network partitions and if a node is 
+                        unreachable from another node, yet was available from else where in the 
+                        ring.
+                    </p>
+                    <p>
+                        All this trafficking of ring state between nodes just created too much load 
+                        for each node to handle. The exponential communication would cause nodes to 
+                        be come unavailable whilst it tried to handle the burst of traffic and in 
+                        turn was unreachable from other nodes. So you end up with a flickering of 
+                        nodes on and off, becoming available to the ring one second and then 
+                        unavailable the next. With the end result that the hash ring can never 
+                        stabilise.
+                    </p>
+                    <p>
+                        There is a lot of ongoing work to remedy this, things that include reducing 
+                        the number of broadcasts that one node can send and spacing the timings out 
+                        between the sends. Additionally reduce the payload by sending a bloom 
+                        filter or cuckoo filter to each node and use that for checking a node 
+                        exists, instead of the original large JSON payload.
+                    </p>
+                </dd>
+                <dt><a href="https://gistlog.co/SimonRichardson/1a0f1163c96496746720f62a30a528a5" title="All aboard">All aboard</a> <span class="date">(June 2018)</span></dt>
+                <dd>
+                    <p>
+                        Recently I have experienced a few interesting on boarding to companies, 
+                        mainly because of new hiring and contracting experiences. As of late I have 
+                        been thinking about what has been the best experiences when starting a new 
+                        role? What are the best ways to bring someone on board and more importantly 
+                        what are do-nots of on boarding someone when joining?
+                    </p>
+                    <p>
+                        The one that bit me recently was joining a new company, they decided it was 
+                        OK to send me a list of reading material and work before my start date. 
+                        With the expectation that I had worked my way through most of it before I 
+                        started! To me this was highly unconventional to put the onus on somebodies 
+                        potential private time to do work for a company you’ve not even started 
+                        for. I find it hard enough to find time to do other things; hobbies, 
+                        family life and the day to day chores, never mind wrapping up or handing 
+                        over in your current employment that may sometimes require extra work.
+                    </p>
+                    <p>
+                        Yet I do concede the idea behind this is to get you up and running as 
+                        quickly as possible. I’m just of the opinion this isn’t the best way to do 
+                        it and that there are easier and clever ways to on board someone so they 
+                        can be productive.
+                    </p>
+                    <p>
+                        The fundamental idea is to attempt to get you as productive; one of the 
+                        team, in the shortest amount of time. Overloading people from the outset 
+                        sends the wrong signals; you’re in the frying pan, straight into the 
+                        fire! There isn’t going to be let up, so get use to it! That’s just not 
+                        the approach I want. It tells me that because there isn’t any initial 
+                        settling in period, I’m expecting a possibility of burn out in the medium 
+                        to long run. Anecdotally this generally what I’ve experienced in the past.
+                    </p>
+                    <p>
+                        I think a better approach is to ease people in, let them learn the ropes. 
+                        Fail fast whilst learning, but don’t criticize people if they do things 
+                        wrong, instead show them a better approach/solution. Giving people time to 
+                        explore solutions may bring a new insights to how you on board, but more 
+                        likely it will highlight what you’re missing when on boarding.
+                    </p>
+                    <p>
+                        Document as much new starter guidelines as possible, either by a few 
+                        markdown documents, a wiki or even a spreadsheet. Take time out of the 
+                        normal routine to explain some hard concepts, the architecture of a 
+                        product, why was it build like so and the reasons behind it. The more 
+                        context you can give the better they will understand the journey ahead.
+                    </p>
+                    <p>
+                        A good touch is to send them an email for their first day that explains 
+                        the best links to have a look around, where the best places are to hangout 
+                        for discussions, chats and the like. If you give them pointers you put 
+                        them in control rather than making people sign up on day one for 
+                        everything, that can come later when they need to.
+                    </p>
+                    <p>
+                        Don’t forget they’re the custodian of your product, give them the ability 
+                        to go out and build upon what you have. Be proud of what you’ve built, 
+                        don’t start off stating everything is a hack, or we did that because it 
+                        was the easiest short cut available. You want people building your product 
+                        to also be proud of the work they do and you don’t want to start off with; 
+                        everything is bad, as that’s just the wrong mindset from the start.
+                    </p>
+                    <p>
+                        Everything was done for a reason, timelines, releases, bug fixes — you name 
+                        it! The important part is that they feel at home building and improving it 
+                        and that’s the end goal.
+                    </p>
+                </dd>
+            </dl>
+        </article>
+        <article>
+            <h2>About</h2>
+            <p>
+                Software Engineer, currently working at <a href="https://canonical.com" title="Employer">Canonical</a> on
+                the <a href="https://juju.is" title="Project">Juju</a> Project, solving
+                distributed application modelling.
+            </p>
             <ul>
-                <li><a href="https://gistlog.co/SimonRichardson/1a0f1163c96496746720f62a30a528a5" title="All aboard">All aboard</a> <span class="date">(June 2018)</span></li>
-                <li><a href="https://gistlog.co/SimonRichardson/bf87c02b00984d2adf63fd7678cdfff7" title="A story about gossip members & a consistent hash-ring">A story about gossip members & a consistent hash-ring</a> <span class="date">(June 2018)</span></li>
-                <li><a href="https://gistlog.co/SimonRichardson/e73658e4ce18a1c782dde3a49eff8c93" title="Inversion of Use">Inversion of Use</a> <span class="date">(November 2019)</span></li>
-                <li><a href="https://gistlog.co/SimonRichardson/aeec3cc956c119223cecb07e9dbeec86" title="Dependencies">Dependencies</a> <span class="date">(November 2019)</span></li>
-                <li><a href="https://gistlog.co/SimonRichardson/ac3ade8fa889186ffeeae3d51b57e706" title="Consistency">Consistency</a> <span class="date"><span class="date">(December 2019)</span></li>
-                <li><a href="https://gistlog.co/SimonRichardson/03aae9d4c6d3c996ada8ecafb3fce1d7" title="Tooling">Tooling (draft)</a> <span class="date">(December 2019)</span></li>
+                <li><a href="https://github.com/SimonRichardson" title="Github">github/simonrichardson</a></li>
+                <li><a href="https://twitter.com/SimonRichardson" title="Twitter">twitter/simonrichardson</a></li>
             </ul>
         </article>
-        
+
         <footer>
             <hr />
-            Simon Richardson - 2021
-            <a href="articles.rss" title="Articles RSS"><img width="12px" height="12px" src="rss.svg" /></a>
+            Simon Richardson - 2021 - 
+            <a href="https://lighthouse-dot-webdotdevsite.appspot.com//lh/html?url=https%3A%2F%2Fsimonrichardson.github.io%2F" title="light house score">100%</a>
+            <a href="articles.rss" title="Articles RSS"><img width="12px" height="12px" src="rss.svg" alt="Article RSS" /></a>
         </footer>
+        <script>
+            function nullable(val) {
+                return val === undefined || val === null;
+            }
+            function State(io) {
+                this.io = io;
+            }
+            State.prototype.projects = function(val) {
+                if (!nullable(val)) {
+                    const io = this.io();
+                    const state = io.state || {};
+                    io.pushState({ "index": state.index, "projects": val }, "");
+                }
+                return (this.io().state || {"projects": false}).projects;
+            };
+            State.prototype.index = function(val) {
+                if (!nullable(val)) {
+                    const io = this.io();
+                    const state = io.state || {};
+                    io.pushState({ "index": val, "projects": state.projects }, "");
+                }
+                return (this.io().state || {"index": -1}).index;
+            };
+            const state = new State(function() {
+                return window.history;
+            });
+
+            let projectsNode;
+            const a = document.querySelectorAll("article");
+            const b = zipWithIndex(a);
+            zipWith(b, repeat(state, b.length)).forEach(a => {
+                const [[index, node], state] = a;
+                if (index == 0) {
+                    if (!state.projects()) {
+                        node.style.display = "none";
+                    }
+                    projectsNode = node;
+                }
+            });
+
+            const p = document.getElementById("projects");
+            p.addEventListener("click", e => {
+                if (!projectsNode) return;
+
+                e.preventDefault();
+
+                const show = !flip(projectsNode);
+
+                state.projects(show);
+                collapse();
+            });
+
+            const d = document.querySelectorAll("dl dt a");
+            const e = zipWithIndex(d);
+            zipWith(e, repeat(state, e.length)).forEach(a => {
+                const [[index, node], state] = a;
+                if (state.index() == index) {
+                    flip(node.parentNode.nextSibling.nextSibling);
+                }
+
+                node.addEventListener("click", e => {
+                    if (!e.target) return;
+
+                    e.preventDefault();
+
+                    const dd = e.target.parentNode.nextSibling.nextSibling;
+                    const value = flip(dd) ? -1 : index;
+
+                    state.index(value)
+                    collapse();
+                });
+            });
+            function collapse() {
+                const d = document.querySelectorAll("dl dd");
+                const e = zipWithIndex(d);
+                zipWith(e, repeat(state, e.length)).forEach(a => {
+                    const [[index, node], state] = a;
+                    if (state.index() == index) {
+                        return;
+                    }
+
+                    const style = window.getComputedStyle(node);
+                    const display = style.getPropertyValue("display");
+                    node.style.display = "none";
+                });
+            }
+            function flip(dd) {
+                if (!dd) return false;
+
+                const style = window.getComputedStyle(dd);
+                const display = style.getPropertyValue("display");
+                dd.style.display = display == "none" ? "block" : "none";
+
+                return dd.style.display == "none";
+            }
+            function repeat(a, times) {
+                let result = [];
+                for(let i = 0; i < times; i++) {
+                    result[i] = a;
+                }
+                return result;
+            }
+            function zipWith(a, b) {
+                let result = [];
+                for(let i = 0; i < Math.min(a.length, b.length); i++) {
+                    result[i] = [a[i], b[i]];
+                }
+                return result;
+            }
+            function zipWithIndex(a) {
+                let result = [];
+                for(let i = 0; i < a.length; i++) {
+                    result[i] = [i, a[i]];
+                }
+                return result;
+            }
+            window.onpopstate = function(event) {
+                collapse();
+
+                zipWith(e, repeat(state, e.length)).forEach(a => {
+                    const [[index, node], state] = a;
+
+                    if (state.index() == index) {
+                        flip(node.parentNode.nextSibling.nextSibling);
+                    }
+                });
+            };
+        </script>
     </body>
 </html>
