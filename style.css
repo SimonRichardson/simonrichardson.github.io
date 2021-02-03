@@ -92,7 +92,7 @@ article:first-of-type dl dd {
 article dl dd p:first-child {
     margin: 0 auto auto auto;
 }
-article dl dd :first-child::first-letter {
+article dl dd p:first-of-type::first-letter {
     font-size: 2em;
 }
 article dl dd p:not(:first-child) {
@@ -106,6 +106,14 @@ article ul {
 article ul li {
     font-size: 1.2em;
     line-height: 2em;
+}
+article dl dd ul {
+    margin: 4em 4em 0em 4em;
+    padding: 1em 0 1em 2em;
+    font-size: 0.8em;
+    list-style-type: none;
+    background-color: #cac0b3;
+    border: #9e978e 1px solid;
 }
 article .date {
     color: #5c5c5c;
@@ -128,6 +136,12 @@ blockquote {
     padding: 1em;
     background-color: #cac0b3;
     font-style: italic;
+}
+blockquote:first-of-type::first-letter {
+    font-size: 2em;
+}
+blockquote:first-of-type {
+    margin: 2em 2em 3em 2em;
 }
 
 @keyframes blinker {
