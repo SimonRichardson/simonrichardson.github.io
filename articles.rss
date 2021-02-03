@@ -1,48 +1,48 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
-<channel>
- <title>Simon Richardson: Articles</title>
-
- <item>
-  <title>All aboard</title>
-  <description>Recently I have experienced a few interesting on boarding to companies, mainly because of new hiring and contracting experiences.</description>
-  <link>https://gistlog.co/SimonRichardson/1a0f1163c96496746720f62a30a528a5</link>
-  <pubDate>Tuesday, 19 June 2018 16:38:20 +0000</pubDate>
- </item>
-
- <item>
-  <title>A story about gossip members & a consistent hash-ring</title>
-  <description>In what seems like a life time ago, I was tasked with load testing a series of application clusters to understand the characteristics of the clusters with certain load profiles.</description>
-  <link>https://gistlog.co/SimonRichardson/bf87c02b00984d2adf63fd7678cdfff7</link>
-  <pubDate>Tuesday, 19 June 2018 16:38:20 +0000</pubDate>
- </item>
-
- <item>
-  <title>Inversion of Use</title>
-  <description>In the last 2 years working a Canonical on the Juju project, I've started formulate concrete ideas about how to program systems at large in go. Your mileage may vary when I come to discuss my ideas about go, but it has helped me reason about one of the largest open source go projects there is.</description>
-  <link>https://gistlog.co/SimonRichardson/e73658e4ce18a1c782dde3a49eff8c93</link>
-  <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
- </item>
-
- <item>
-  <title>Dependencies</title>
-  <description>These are my dependencies. There are many like them but these ones are mine. My dependencies are my best friends. It is my life. I must master them as I must master my life. Without me, my dependencies are useless. Without my dependencies I am useless.</description>
-  <link>https://gistlog.co/SimonRichardson/aeec3cc956c119223cecb07e9dbeec86</link>
-  <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
- </item>
-
- <item>
-  <title>Consistency</title>
-  <description>This is a short article about why I believe consistency is paramount. In fact I believe consistency is so valuable to a team, that the lack of it can cause a lack of coherency and can slow the velocity of projects to a snails pace.</description>
-  <link>https://gistlog.co/SimonRichardson/ac3ade8fa889186ffeeae3d51b57e706</link>
-  <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
- </item>
-
-  <item>
-  <title>Tooling (draft)</title>
-  <description>I'm always surprised by the lack of tooling I find within software projects. </description>
-  <link>https://gistlog.co/SimonRichardson/03aae9d4c6d3c996ada8ecafb3fce1d7</link>
-  <pubDate>Monday, 09 Dec 2019 16:58:20 +0000</pubDate>
- </item>
-</channel>
+   <channel>
+      <title>Simon Richardson: Articles</title>
+      <item>
+         <title>All aboard</title>
+         <description>Recently I have experienced a few interesting on boarding to companies, mainly because of new hiring and contracting experiences.</description>
+         <link>https://gistlog.co/SimonRichardson/1a0f1163c96496746720f62a30a528a5</link>
+         <pubDate>Tuesday, 19 June 2018 16:38:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>A story about gossip members &amp; a consistent hash-ring</title>
+         <description>In what seems like a life time ago, I was tasked with load testing a series of application clusters to understand the characteristics of the clusters with certain load profiles.</description>
+         <link>https://gistlog.co/SimonRichardson/bf87c02b00984d2adf63fd7678cdfff7</link>
+         <pubDate>Tuesday, 19 June 2018 16:38:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>Inversion of Use</title>
+         <description>In the last 2 years working a Canonical on the Juju project, I've started formulate concrete ideas about how to program systems at large in go. Your mileage may vary when I come to discuss my ideas about go, but it has helped me reason about one of the largest open source go projects there is.</description>
+         <link>https://gistlog.co/SimonRichardson/e73658e4ce18a1c782dde3a49eff8c93</link>
+         <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>Dependencies</title>
+         <description>These are my dependencies. There are many like them but these ones are mine. My dependencies are my best friends. It is my life. I must master them as I must master my life. Without me, my dependencies are useless. Without my dependencies I am useless.</description>
+         <link>https://gistlog.co/SimonRichardson/aeec3cc956c119223cecb07e9dbeec86</link>
+         <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>Consistency</title>
+         <description>This is a short article about why I believe consistency is paramount. In fact I believe consistency is so valuable to a team, that the lack of it can cause a lack of coherency and can slow the velocity of projects to a snails pace.</description>
+         <link>https://gistlog.co/SimonRichardson/ac3ade8fa889186ffeeae3d51b57e706</link>
+         <pubDate>Friday, 06 Dec 2019 16:38:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>Tooling (draft)</title>
+         <description>I'm always surprised by the lack of tooling I find within software projects.</description>
+         <link>https://gistlog.co/SimonRichardson/03aae9d4c6d3c996ada8ecafb3fce1d7</link>
+         <pubDate>Monday, 09 Dec 2019 16:58:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>Trim the fat</title>
+         <description>I'm often thinking about the article The wrong abstraction by Sandi Metz.</description>
+         <link>https://gistlog.co/SimonRichardson/1a9791f798a6f30a1f77a18c560e1124</link>
+         <pubDate>Monday, 02 Feb 2021 13:53:20 +0000</pubDate>
+      </item>
+   </channel>
 </rss>
