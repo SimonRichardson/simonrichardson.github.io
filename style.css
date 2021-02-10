@@ -53,17 +53,18 @@ header .cursor {
 		opacity: 1;
 	}
 }
-article dl {
+
+section dl {
     margin: 0 0 0 3em;
 }
-article dl dt {
+section dl dt {
     font-size: 1.2em;
     line-height: 2em;
     display: list-item;
     list-style-type: disc;
     list-style-position: outside;
 }
-article dl dd {
+section dl dd {
     border: 3px solid #1b1b1b;
     border-left: none;
     border-right: none;
@@ -75,57 +76,57 @@ article dl dd {
     padding: 3em 0;
 }
 @media only screen and (max-width: 1600px) {
-    article dl dd {
+    section dl dd {
         columns: 2;
     }
 }
 @media only screen and (max-width: 1200px) {
-    article dl dd {
+    section dl dd {
         columns: 1;
     }
 }
 @media only screen and (max-width: 800px) {
-    article dl dd {
+    section dl dd {
         margin: 3em 0 3em -2em;
     }
 }
 @media only screen and (max-width: 700px) {
-    article dl dd {
+    section dl dd {
         margin: 3em -0.5em 3em -3em;
     }
 }
 @media only screen and (max-width: 600px) {
-    article dl dd {
+    section dl dd {
         margin: 3em -1em 3em -4em;
     }
 }
 @media only screen and (max-width: 400px) {
-    article dl dd {
+    section dl dd {
         margin: 3em -2em 3em -5em;
     }
 }
-article:first-of-type dl dd {
+section:first-of-type dl dd {
     columns: 1;
 }
-article dl dd p:first-child {
+section dl dd p:first-child {
     margin: 0 auto auto auto;
 }
-article dl dd p:first-of-type::first-letter {
+section dl dd p:first-of-type::first-letter {
     font-size: 2em;
 }
-article dl dd p:not(:first-child) {
+section dl dd p:not(:first-child) {
     border-top: 3px dotted #cac0b3;
     padding-top: 1em;
 }
-article ul {
+section ul {
     margin: 0 0 0 3em;
     padding: 0 0 0 0;
 }
-article ul li {
+section ul li {
     font-size: 1.2em;
     line-height: 2em;
 }
-article dl dd ul {
+section dl dd ul {
     margin: 4em 4em 0em 4em;
     padding: 1em 0 1em 2em;
     font-size: 0.8em;
@@ -134,12 +135,12 @@ article dl dd ul {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cdefs%3E%3Cpattern id='qzpbc' patternUnits='userSpaceOnUse' width='20' height='20'%3E%3Cpath d='M 0,20 l 20,-20 M -5,5 l 10,-10 M 15,25 l 10,-10' stroke-width='0.2' shape-rendering='auto' stroke='%23343434' stroke-linecap='square'%3E%3C/path%3E%3C/pattern%3E%3C/defs%3E%3Cpath d='M 0 0 L 0 140 L 140 140 L 140 0 Z' style='fill: url(&quot;%23qzpbc&quot;);'%3E%3C/path%3E%3C/svg%3E");border: #9e978e 1px solid;
 }
 @media only screen and (max-width: 600px) {
-    article dl dd ul {
+    section dl dd ul {
         margin: 4em 0 0 -0.7em;
         width: 100%;
     }
 }
-article .date {
+section .date {
     color: #5c5c5c;
 }
 footer {

@@ -42,7 +42,19 @@
          <title>Trim the fat</title>
          <description>I'm often thinking about the article The wrong abstraction by Sandi Metz.</description>
          <link>https://gistlog.co/SimonRichardson/1a9791f798a6f30a1f77a18c560e1124</link>
-         <pubDate>Monday, 02 Feb 2021 13:53:20 +0000</pubDate>
+         <pubDate>Tuesday, 02 Feb 2021 13:53:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>Dependant Unit Tests</title>
+         <description>I daily have to interact with tests that portray themselves as unit tests but masquerade as tests that integrate with the whole stack from them down to the lowest levels.</description>
+         <link>https://gistlog.co/SimonRichardson/768d9a37f1eafec9dd1a83f37ee1a726</link>
+         <pubDate>Wednesday, 03 Feb 2021 11:20:20 +0000</pubDate>
+      </item>
+      <item>
+         <title>Temporal Changes</title>
+         <description>Prior to my thinking now, I use to believe that you should aim to make everything a library.</description>
+         <link>https://gistlog.co/SimonRichardson/5abaa21a78027a1a4ab25d1339ed1758</link>
+         <pubDate>Wednesday, 10 Feb 2021 10:03:20 +0000</pubDate>
       </item>
    </channel>
 </rss>
