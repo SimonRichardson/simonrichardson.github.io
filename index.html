@@ -676,7 +676,7 @@
                 if (!nullable(val)) {
                     const io = this.io();
                     const state = io.state || {};
-                    io.pushState({ "index": state.index, "projects": val }, "");
+                    io.replaceState({ "index": state.index, "projects": val }, "");
                 }
                 return (this.io().state || {"projects": false}).projects;
             };
@@ -684,7 +684,7 @@
                 if (!nullable(val)) {
                     const io = this.io();
                     const state = io.state || {};
-                    io.pushState({ "index": val, "projects": state.projects }, "");
+                    io.replaceState({ "index": val, "projects": state.projects }, "");
                 }
                 return (this.io().state || {"index": -1}).index;
             };
