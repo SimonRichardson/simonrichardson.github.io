@@ -412,6 +412,7 @@
                 }
 
                 updateBreadcrumb();
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
             }
 
             function loadPage(url) {
@@ -653,11 +654,13 @@
             document.getElementById("window-minimize").addEventListener("click", function() {
                 const body = document.getElementById("window-body");
                 body.style.display = body.style.display === "none" ? "flex" : "none";
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
             });
 
             document.getElementById("window-toggle-breadcrumb").addEventListener("click", function() {
                 const bc = document.getElementById("breadcrumb");
                 bc.style.display = bc.style.display === "none" ? "block" : "none";
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
             });
 
             // Background color picker - Win95 palette window
@@ -695,14 +698,17 @@
             document.getElementById("prefs-minimize").addEventListener("click", function() {
                 var body = document.getElementById("prefs-window-body");
                 body.style.display = body.style.display === "none" ? "flex" : "none";
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
             });
             document.getElementById("pref-bgcolor").addEventListener("click", function() {
                 var cw = document.getElementById("color-window");
                 cw.style.display = cw.style.display === "none" ? "flex" : "none";
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
             });
             document.getElementById("color-minimize").addEventListener("click", function() {
                 var body = document.getElementById("color-window-body");
                 body.style.display = body.style.display === "none" ? "block" : "none";
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
             });
             document.getElementById("pref-clear-cookies").addEventListener("click", function() {
                 document.cookie = "sitePrefs=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";

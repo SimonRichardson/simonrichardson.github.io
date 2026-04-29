@@ -46,6 +46,7 @@
     for (var i = 0; i < legends.length; i++) {
         legends[i].addEventListener("click", function() {
             this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
         });
     }
 
