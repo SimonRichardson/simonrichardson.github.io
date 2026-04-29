@@ -140,6 +140,7 @@
             const navData = {
                 "Home": { 
                     "Gravitas": { page: "pages/home001.html" },
+                    "Ribbons": { page: "pages/home002.html" },
                 },
                 "Projects": {
                     "Go": {
@@ -289,13 +290,23 @@
             }
 
             // Initialize: restore from hash or load home.
+            // Pick a random home page from the "Home" branch.
+            function randomHomePage() {
+                var homeNode = navData["Home"];
+                var pages = [];
+                for (var key in homeNode) {
+                    if (homeNode[key].page) pages.push(homeNode[key].page);
+                }
+                return pages[Math.floor(Math.random() * pages.length)];
+            }
+
             (function() {
                 var hash = window.location.hash.replace(/^#/, "");
                 if (hash) {
                     renderSelects(hash.split("/"));
                 } else {
                     renderSelects();
-                    loadPage("pages/home001.html");
+                    loadPage(randomHomePage());
                 }
             })();
 
@@ -305,7 +316,7 @@
                     renderSelects(hash.split("/"));
                 } else {
                     renderSelects();
-                    loadPage("pages/home001.html");
+                    loadPage(randomHomePage());
                 }
             });
 

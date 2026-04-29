@@ -1,0 +1,355 @@
+<div id="settings-panel">
+    <div id="settings-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track"></div>
+    </div>
+    <div id="settings-chrome">
+        <div id="settings-body">
+            <label>
+                Speed
+                <input type="range" id="setting-speed" min="1" max="100" value="16">
+            </label>
+            <label>
+                Ribbons
+                <input type="number" id="setting-ribbons" min="1" max="8" value="1">
+            </label>
+            <button id="setting-apply">Apply</button>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+    var settingsSpeed = document.getElementById("setting-speed");
+    var settingsRibbons = document.getElementById("setting-ribbons");
+
+    var settings = { speed: 0.03, numRibbons: 2 };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    settingsSpeed.addEventListener("input", function() {
+        settings.speed = parseFloat(this.value) / 2000;
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.numRibbons = parseInt(settingsRibbons.value, 10) || 1;
+        initRibbons();
+    });
+
+    // Settings panel drag (uses dock system).
+    (function() {
+        var track = document.getElementById("settings-grab-track");
+        var dragging = false, offsetX = 0, offsetY = 0;
+
+        window.__dockSystem.register("settings", settingsPanel);
+
+        track.addEventListener("mousedown", function(e) {
+            dragging = true;
+            offsetX = e.clientX - settingsPanel.offsetLeft;
+            offsetY = e.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", e.clientX - offsetX, e.clientY - offsetY);
+        });
+
+        document.addEventListener("mouseup", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+
+        track.addEventListener("touchstart", function(e) {
+            dragging = true;
+            var touch = e.touches[0];
+            offsetX = touch.clientX - settingsPanel.offsetLeft;
+            offsetY = touch.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var touch = e.touches[0];
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", touch.clientX - offsetX, touch.clientY - offsetY);
+        });
+
+        document.addEventListener("touchend", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+    })();
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- Sphere parameters ---
+    var sphere = {
+        radius: 0,
+        x: 0,
+        y: 0
+    };
+
+    function updateSphere() {
+        sphere.x = canvas.width / 2;
+        sphere.y = canvas.height / 2;
+        sphere.radius = Math.min(canvas.width, canvas.height) / 5;
+    }
+    updateSphere();
+
+    // --- Ribbon parameters ---
+    var NUM_POINTS = 80;
+    var RIBBON_WIDTH = 18;
+    var ARC_FRACTION = 0.75;
+
+    var ribbons = []; // Array of ribbon objects.
+    var orbitPhase = 0;
+
+    function initRibbons() {
+        ribbons = [];
+        for (var r = 0; r < settings.numRibbons; r++) {
+            ribbons.push({
+                points: [],
+                tilt: Math.PI * 0.4 + (r * Math.PI) / settings.numRibbons,
+                phaseOffset: (r * Math.PI * 2) / settings.numRibbons,
+                wobbleAmp: 0.3,
+                wobbleFreq: 2.5
+            });
+        }
+    }
+    initRibbons();
+
+    // Simple 3D vector helpers.
+    function rotateY(p, angle) {
+        var cos = Math.cos(angle);
+        var sin = Math.sin(angle);
+        return { x: p.x * cos + p.z * sin, y: p.y, z: -p.x * sin + p.z * cos };
+    }
+
+    function rotateX(p, angle) {
+        var cos = Math.cos(angle);
+        var sin = Math.sin(angle);
+        return { x: p.x, y: p.y * cos - p.z * sin, z: p.y * sin + p.z * cos };
+    }
+
+    function rotateZ(p, angle) {
+        var cos = Math.cos(angle);
+        var sin = Math.sin(angle);
+        return { x: p.x * cos - p.y * sin, y: p.x * sin + p.y * cos, z: p.z };
+    }
+
+    // Project 3D point to 2D with perspective.
+    var PERSPECTIVE = 600;
+    function project(p) {
+        var scale = PERSPECTIVE / (PERSPECTIVE + p.z);
+        return { x: sphere.x + p.x * scale, y: sphere.y + p.y * scale, scale: scale };
+    }
+
+    // Generate ribbon 3D points for a given ribbon object.
+    function computeRibbonPoints(ribbon) {
+        ribbon.points.length = 0;
+        var orbitRadius = sphere.radius * 1.3;
+
+        for (var i = 0; i < NUM_POINTS; i++) {
+            var t = (i / (NUM_POINTS - 1)) * Math.PI * 2 * ARC_FRACTION;
+            var angle = t + orbitPhase + ribbon.phaseOffset;
+
+            // Base circle in XZ plane.
+            var px = Math.cos(angle) * orbitRadius;
+            var py = 0;
+            var pz = Math.sin(angle) * orbitRadius;
+
+            // Add vertical wobble for ribbon wave effect.
+            py += Math.sin(angle * ribbon.wobbleFreq + orbitPhase * 3) * orbitRadius * ribbon.wobbleAmp;
+
+            var p = { x: px, y: py, z: pz };
+
+            // Tilt the orbit.
+            p = rotateX(p, ribbon.tilt);
+            // Slow secondary rotation for visual interest.
+            p = rotateY(p, orbitPhase * 0.3);
+            p = rotateZ(p, orbitPhase * 0.15);
+
+            ribbon.points.push(p);
+        }
+    }
+
+    // Draw the sphere as solid black.
+    function drawSphere() {
+        ctx.beginPath();
+        ctx.arc(sphere.x, sphere.y, sphere.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+    }
+
+    // Draw ribbon as filled strip using bezier curves.
+    // mode: "back" draws only behind-sphere parts, "front" draws only in-front parts.
+    function drawRibbonParts(points, mode) {
+        var projected = [];
+        for (var i = 0; i < points.length; i++) {
+            var p3 = points[i];
+            var proj = project(p3);
+            projected.push({
+                x: proj.x,
+                y: proj.y,
+                scale: proj.scale,
+                z: p3.z,
+                behind: p3.z > 0
+            });
+        }
+
+        // Collect continuous runs of front/back points.
+        // Include one overlap point at boundaries to prevent gaps.
+        var runs = [];
+        var currentRun = null;
+        var currentBehind = null;
+
+        for (var i = 0; i < projected.length; i++) {
+            var p = projected[i];
+            if (p.behind !== currentBehind) {
+                if (currentRun && currentRun.length > 0) {
+                    currentRun.push({ point: p, index: i });
+                    if ((currentBehind && mode === "back") || (!currentBehind && mode === "front")) {
+                        runs.push(currentRun);
+                    }
+                }
+                currentRun = [];
+                currentBehind = p.behind;
+                if (i > 0) {
+                    currentRun.push({ point: projected[i - 1], index: i - 1 });
+                }
+            }
+            currentRun.push({ point: p, index: i });
+        }
+        if (currentRun && currentRun.length > 0) {
+            if ((currentBehind && mode === "back") || (!currentBehind && mode === "front")) {
+                runs.push(currentRun);
+            }
+        }
+
+        for (var r = 0; r < runs.length; r++) {
+            drawRibbonRun(runs[r], projected, mode === "back");
+        }
+    }
+
+    function drawRibbonBack(points) { drawRibbonParts(points, "back"); }
+    function drawRibbonFront(points) { drawRibbonParts(points, "front"); }
+
+    function drawRibbonRun(run, projected, behind) {
+        if (run.length < 2) return;
+
+        var topEdge = [];
+        var bottomEdge = [];
+
+        for (var i = 0; i < run.length; i++) {
+            var curr = run[i].point;
+            var idx = run[i].index;
+
+            // Use neighbors within the run for tangent calculation.
+            var prevP = (i > 0) ? run[i - 1].point : curr;
+            var nextP = (i < run.length - 1) ? run[i + 1].point : curr;
+
+            var dx = nextP.x - prevP.x;
+            var dy = nextP.y - prevP.y;
+            var len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 0.001) { dx = 1; dy = 0; len = 1; }
+            var nx = -dy / len;
+            var ny = dx / len;
+
+            var halfW = RIBBON_WIDTH * curr.scale * 0.5;
+            // Taper to a point at both ends of the ribbon.
+            var t = idx / (NUM_POINTS - 1); // 0 at start, 1 at end
+            var taper = Math.min(t * 4, 1.0, (1 - t) * 4);
+            halfW *= taper;
+            topEdge.push({ x: curr.x + nx * halfW, y: curr.y + ny * halfW });
+            bottomEdge.push({ x: curr.x - nx * halfW, y: curr.y - ny * halfW });
+        }
+
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 0.5;
+
+        ctx.beginPath();
+        smoothCurve(topEdge);
+        var revBottom = bottomEdge.slice().reverse();
+        smoothCurveLineTo(revBottom);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    // Draw a smooth Catmull-Rom curve through points (moveTo first point).
+    function smoothCurve(points) {
+        if (points.length < 2) return;
+        ctx.moveTo(points[0].x, points[0].y);
+        smoothCurveSegments(points);
+    }
+
+    // Continue a smooth curve (lineTo, no moveTo).
+    function smoothCurveLineTo(points) {
+        if (points.length < 2) return;
+        ctx.lineTo(points[0].x, points[0].y);
+        smoothCurveSegments(points);
+    }
+
+    function smoothCurveSegments(points) {
+        var n = points.length;
+        for (var i = 0; i < n - 1; i++) {
+            var p0 = points[Math.max(i - 1, 0)];
+            var p1 = points[i];
+            var p2 = points[i + 1];
+            var p3 = points[Math.min(i + 2, n - 1)];
+
+            // Catmull-Rom to cubic bezier control points.
+            var cp1x = p1.x + (p2.x - p0.x) / 6;
+            var cp1y = p1.y + (p2.y - p0.y) / 6;
+            var cp2x = p2.x - (p3.x - p1.x) / 6;
+            var cp2y = p2.y - (p3.y - p1.y) / 6;
+
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+    }
+
+    // --- Animation loop ---
+    function loop() {
+        updateSphere();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        orbitPhase += settings.speed;
+
+        // Compute all ribbons.
+        for (var r = 0; r < ribbons.length; r++) {
+            computeRibbonPoints(ribbons[r]);
+        }
+
+        // Draw back parts of all ribbons, then sphere, then front parts.
+        for (var r = 0; r < ribbons.length; r++) {
+            drawRibbonBack(ribbons[r].points);
+        }
+        drawSphere();
+        for (var r = 0; r < ribbons.length; r++) {
+            drawRibbonFront(ribbons[r].points);
+        }
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    loop();
+})();
+</script>
