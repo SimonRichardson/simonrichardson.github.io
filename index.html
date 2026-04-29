@@ -37,6 +37,7 @@
 
         <div id="prefs-window" class="win-window" style="display:none;">
             <div id="prefs-grab" class="win-grab">
+                <button id="prefs-close" class="win-close-btn" title="Close">&#10005;</button>
                 <button id="prefs-minimize" title="Minimize">_</button>
                 <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
                 <div id="prefs-grab-track" class="win-grab-track"></div>
@@ -51,6 +52,7 @@
 
         <div id="color-window" class="win-window" style="display:none;">
             <div id="color-grab" class="win-grab">
+                <button id="color-close" class="win-close-btn" title="Close">&#10005;</button>
                 <button id="color-minimize" title="Minimize">_</button>
                 <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
                 <div id="color-grab-track" class="win-grab-track"></div>
@@ -423,6 +425,7 @@
                 }
                 // Unregister any fragment-owned windows from dock system.
                 window.__dockSystem.unregister("settings");
+                window.__currentPageUrl = url;
 
                 var bg = document.getElementById("background-content");
                 fetch(url)
@@ -436,6 +439,14 @@
                             newScript.textContent = oldScript.textContent;
                             oldScript.parentNode.replaceChild(newScript, oldScript);
                         });
+                        // Restore saved settings for this page.
+                        restorePageSettings();
+                        // Auto-save settings on any input change.
+                        var panel = document.getElementById("settings-body");
+                        if (panel) {
+                            panel.addEventListener("input", savePageSettings);
+                            panel.addEventListener("change", savePageSettings);
+                        }
                     })
                     .catch(function() { bg.innerHTML = "<p>Failed to load content.</p>"; });
             }
@@ -471,6 +482,112 @@
                 }
             });
 
+            // --- Cookie persistence for background color, window positions, and page settings ---
+            var currentBgColor = "#000000";
+            function setCookie(name, value, days) {
+                var expires = "";
+                if (days) {
+                    var d = new Date();
+                    d.setTime(d.getTime() + days * 86400000);
+                    expires = "; expires=" + d.toUTCString();
+                }
+                document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/; SameSite=Lax";
+            }
+            function getCookie(name) {
+                var match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+                return match ? decodeURIComponent(match[2]) : null;
+            }
+            window.__windowPositions = {};
+            window.__pageSettings = {};
+            function savePrefs() {
+                var positions = {};
+                var allWins = document.querySelectorAll(".win-window");
+                for (var i = 0; i < allWins.length; i++) {
+                    var el = allWins[i];
+                    if (el.style.display === "none") continue;
+                    var id = null;
+                    if (el.id === "nav-window") id = "navigator";
+                    else if (el.id === "prefs-window") id = "prefs";
+                    else if (el.id === "color-window") id = "color";
+                    else if (el.id === "settings-panel") id = "settings";
+                    if (id) {
+                        positions[id] = { left: el.offsetLeft, top: el.offsetTop };
+                    }
+                }
+                var prefs = {
+                    bgColor: currentBgColor,
+                    windowPositions: positions,
+                    pageSettings: window.__pageSettings || {}
+                };
+                setCookie("sitePrefs", JSON.stringify(prefs), 365);
+            }
+            var __restoringSettings = false;
+            function restorePageSettings() {
+                var page = window.__currentPageUrl;
+                if (!page || !window.__pageSettings || !window.__pageSettings[page]) return;
+                __restoringSettings = true;
+                var values = window.__pageSettings[page];
+                for (var id in values) {
+                    var inp = document.getElementById(id);
+                    if (!inp) continue;
+                    if (inp.type === "checkbox") {
+                        inp.checked = values[id];
+                    } else {
+                        inp.value = values[id];
+                    }
+                    inp.dispatchEvent(new Event("input", { bubbles: true }));
+                    inp.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                var applyBtn = document.getElementById("setting-apply");
+                if (applyBtn) applyBtn.click();
+                __restoringSettings = false;
+            }
+            function savePageSettings() {
+                if (__restoringSettings) return;
+                var panel = document.getElementById("settings-body");
+                if (!panel) return;
+                var page = window.__currentPageUrl;
+                if (!page) return;
+                var inputs = panel.querySelectorAll("input[id^='setting-']");
+                var values = {};
+                for (var i = 0; i < inputs.length; i++) {
+                    var inp = inputs[i];
+                    if (inp.type === "checkbox") {
+                        values[inp.id] = inp.checked;
+                    } else {
+                        values[inp.id] = inp.value;
+                    }
+                }
+                if (!window.__pageSettings) window.__pageSettings = {};
+                window.__pageSettings[page] = values;
+                savePrefs();
+            }
+            function loadPrefs() {
+                var raw = getCookie("sitePrefs");
+                if (!raw) return;
+                try {
+                    var prefs = JSON.parse(raw);
+                    if (prefs.bgColor) {
+                        currentBgColor = prefs.bgColor;
+                        document.body.style.backgroundColor = prefs.bgColor;
+                        document.getElementById("color-preview").style.backgroundColor = prefs.bgColor;
+                    }
+                    if (prefs.windowPositions) {
+                        window.__windowPositions = prefs.windowPositions;
+                    }
+                    if (prefs.navLeft != null && !prefs.windowPositions) {
+                        window.__windowPositions.navigator = { left: prefs.navLeft, top: prefs.navTop };
+                    }
+                    if (prefs.setLeft != null && !prefs.windowPositions) {
+                        window.__windowPositions.settings = { left: prefs.setLeft, top: prefs.setTop };
+                    }
+                    if (prefs.pageSettings) {
+                        window.__pageSettings = prefs.pageSettings;
+                    }
+                } catch(e) {}
+            }
+            loadPrefs();
+
             // --- makeDraggable: shared helper for all windows ---
             window.makeDraggable = function(dockId, winEl, trackEl) {
                 var dragging = false;
@@ -478,6 +595,15 @@
                 var offsetY = 0;
 
                 window.__dockSystem.register(dockId, winEl);
+
+                // Restore saved position if available.
+                var positions = window.__windowPositions || {};
+                if (positions[dockId]) {
+                    winEl.style.left = positions[dockId].left + "px";
+                    winEl.style.top = positions[dockId].top + "px";
+                    winEl.style.right = "auto";
+                    winEl.style.bottom = "auto";
+                }
 
                 trackEl.addEventListener("mousedown", function(e) {
                     dragging = true;
@@ -561,7 +687,6 @@
             });
 
             // Background color picker - Win95 palette window
-            var currentBgColor = "#000000";
             var colorPalette = [
                 "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#c0c0c0",
                 "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff",
@@ -607,6 +732,14 @@
                 body.style.display = body.style.display === "none" ? "block" : "none";
                 setTimeout(function() { window.__dockSystem.dock(); }, 0);
             });
+            document.getElementById("prefs-close").addEventListener("click", function() {
+                document.getElementById("prefs-window").style.display = "none";
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
+            });
+            document.getElementById("color-close").addEventListener("click", function() {
+                document.getElementById("color-window").style.display = "none";
+                setTimeout(function() { window.__dockSystem.dock(); }, 0);
+            });
             document.getElementById("pref-clear-cookies").addEventListener("click", function() {
                 document.cookie = "sitePrefs=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
                 document.body.style.backgroundColor = "";
@@ -625,57 +758,6 @@
             document.getElementById("dark-mode-toggle").addEventListener("click", function() {
                 document.body.classList.toggle("dark-mode");
             });
-
-            // --- Cookie persistence for background color and window positions ---
-            function setCookie(name, value, days) {
-                var expires = "";
-                if (days) {
-                    var d = new Date();
-                    d.setTime(d.getTime() + days * 86400000);
-                    expires = "; expires=" + d.toUTCString();
-                }
-                document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/; SameSite=Lax";
-            }
-            function getCookie(name) {
-                var match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-                return match ? decodeURIComponent(match[2]) : null;
-            }
-            function savePrefs() {
-                var nav = document.getElementById("nav-window");
-                var set = document.getElementById("settings-panel");
-                var prefs = {
-                    bgColor: currentBgColor,
-                    navLeft: nav.offsetLeft,
-                    navTop: nav.offsetTop,
-                    setLeft: set.offsetLeft,
-                    setTop: set.offsetTop
-                };
-                setCookie("sitePrefs", JSON.stringify(prefs), 365);
-            }
-            function loadPrefs() {
-                var raw = getCookie("sitePrefs");
-                if (!raw) return;
-                try {
-                    var prefs = JSON.parse(raw);
-                    if (prefs.bgColor) {
-                        currentBgColor = prefs.bgColor;
-                        document.body.style.backgroundColor = prefs.bgColor;
-                        document.getElementById("color-preview").style.backgroundColor = prefs.bgColor;
-                    }
-                    var nav = document.getElementById("nav-window");
-                    var set = document.getElementById("settings-panel");
-                    if (prefs.navLeft != null) {
-                        nav.style.left = prefs.navLeft + "px";
-                        nav.style.top = prefs.navTop + "px";
-                    }
-                    if (prefs.setLeft != null) {
-                        set.style.left = prefs.setLeft + "px";
-                        set.style.top = prefs.setTop + "px";
-                        set.style.right = "auto";
-                    }
-                } catch(e) {}
-            }
-            loadPrefs();
 
             // Save positions on drag end
             document.addEventListener("mouseup", function() { setTimeout(savePrefs, 50); });
