@@ -321,8 +321,13 @@
 
                 track.addEventListener("mousedown", function(e) {
                     dragging = true;
-                    offsetX = e.clientX - win.offsetLeft;
-                    offsetY = e.clientY - win.offsetTop;
+                    var currentTop = win.offsetTop;
+                    var currentLeft = win.offsetLeft;
+                    win.style.bottom = "auto";
+                    win.style.top = currentTop + "px";
+                    win.style.left = currentLeft + "px";
+                    offsetX = e.clientX - currentLeft;
+                    offsetY = e.clientY - currentTop;
                     e.preventDefault();
                 });
 
@@ -339,9 +344,14 @@
                 // Touch support.
                 track.addEventListener("touchstart", function(e) {
                     dragging = true;
+                    var currentTop = win.offsetTop;
+                    var currentLeft = win.offsetLeft;
+                    win.style.bottom = "auto";
+                    win.style.top = currentTop + "px";
+                    win.style.left = currentLeft + "px";
                     const touch = e.touches[0];
-                    offsetX = touch.clientX - win.offsetLeft;
-                    offsetY = touch.clientY - win.offsetTop;
+                    offsetX = touch.clientX - currentLeft;
+                    offsetY = touch.clientY - currentTop;
                     e.preventDefault();
                 });
 
