@@ -1,11 +1,11 @@
-<div id="settings-panel">
-    <div id="settings-grab">
+<div id="settings-panel" class="win-window">
+    <div id="settings-grab" class="win-grab">
         <button id="settings-minimize" title="Minimize">_</button>
         <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
-        <div id="settings-grab-track"></div>
+        <div id="settings-grab-track" class="win-grab-track"></div>
     </div>
-    <div id="settings-chrome">
-        <div id="settings-body">
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
             <div class="settings-fieldset collapsed">
                 <div class="settings-legend">About</div>
                 <p>Smooth bezier ribbons orbit a central sphere using Catmull-Rom spline interpolation. Multiple ribbons chase their tails in 3D space.</p>
@@ -67,50 +67,7 @@
     });
 
     // Settings panel drag (uses dock system).
-    (function() {
-        var track = document.getElementById("settings-grab-track");
-        var dragging = false, offsetX = 0, offsetY = 0;
-
-        window.__dockSystem.register("settings", settingsPanel);
-
-        track.addEventListener("mousedown", function(e) {
-            dragging = true;
-            offsetX = e.clientX - settingsPanel.offsetLeft;
-            offsetY = e.clientY - settingsPanel.offsetTop;
-            e.preventDefault();
-        });
-
-        document.addEventListener("mousemove", function(e) {
-            if (!dragging) return;
-            settingsPanel.style.right = "auto";
-            window.__dockSystem.onDragMove("settings", e.clientX - offsetX, e.clientY - offsetY);
-        });
-
-        document.addEventListener("mouseup", function() {
-            if (dragging) window.__dockSystem.onDragEnd("settings");
-            dragging = false;
-        });
-
-        track.addEventListener("touchstart", function(e) {
-            dragging = true;
-            var touch = e.touches[0];
-            offsetX = touch.clientX - settingsPanel.offsetLeft;
-            offsetY = touch.clientY - settingsPanel.offsetTop;
-            e.preventDefault();
-        });
-
-        document.addEventListener("touchmove", function(e) {
-            if (!dragging) return;
-            var touch = e.touches[0];
-            settingsPanel.style.right = "auto";
-            window.__dockSystem.onDragMove("settings", touch.clientX - offsetX, touch.clientY - offsetY);
-        });
-
-        document.addEventListener("touchend", function() {
-            if (dragging) window.__dockSystem.onDragEnd("settings");
-            dragging = false;
-        });
-    })();
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
 
     var canvas = document.getElementById("home-canvas");
     if (!canvas) return;

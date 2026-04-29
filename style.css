@@ -64,28 +64,16 @@ body {
 }
 
 /* Floating Win95 window */
-#nav-window {
+/* Shared window styles */
+.win-window {
     position: absolute;
-    bottom: 48px;
-    left: 20px;
     display: flex;
     flex-direction: row;
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
     z-index: 10000;
 }
 
-/* Preferences window */
-#prefs-window {
-    position: absolute;
-    bottom: 48px;
-    left: 180px;
-    display: flex;
-    flex-direction: row;
-    z-index: 10001;
-    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
-}
-
-#prefs-grab {
+.win-grab {
     width: 18px;
     display: flex;
     flex-direction: column;
@@ -98,7 +86,7 @@ body {
     gap: 2px;
 }
 
-#prefs-grab-track {
+.win-grab-track {
     flex: 1;
     width: 100%;
     cursor: grab;
@@ -109,11 +97,11 @@ body {
     background-position: 0 0, 3px 3px;
 }
 
-#prefs-grab-track:active {
+.win-grab-track:active {
     cursor: grabbing;
 }
 
-#prefs-grab button {
+.win-grab button {
     width: 14px;
     height: 14px;
     font-size: 8px;
@@ -130,28 +118,31 @@ body {
     flex-shrink: 0;
 }
 
-#prefs-grab button:active {
+.win-grab button:active {
     border-top: 1px solid #808080;
     border-left: 1px solid #808080;
     border-right: 1px solid #ffffff;
     border-bottom: 1px solid #ffffff;
 }
 
-#prefs-chrome {
+.win-chrome {
+    display: flex;
+    flex-direction: column;
     background-color: #c0c0c0;
     border-top: 2px solid #ffffff;
     border-right: 2px solid #808080;
     border-bottom: 2px solid #808080;
+    border-left: none;
 }
 
-#prefs-window-body {
-    padding: 6px;
+.win-body {
     display: flex;
     flex-direction: column;
+    padding: 6px;
     gap: 4px;
 }
 
-#prefs-window-body button {
+.win-body button {
     font-family: sans-serif;
     font-size: 11px;
     padding: 2px 8px;
@@ -163,85 +154,29 @@ body {
     cursor: pointer;
 }
 
-#prefs-window-body button:active {
+.win-body button:active {
     border-top: 1px solid #808080;
     border-left: 1px solid #808080;
     border-right: 1px solid #ffffff;
     border-bottom: 1px solid #ffffff;
 }
 
-/* Color picker window */
+/* Window-specific positioning */
+#nav-window {
+    bottom: 48px;
+    left: 20px;
+}
+
+#prefs-window {
+    bottom: 48px;
+    left: 180px;
+    z-index: 10001;
+}
+
 #color-window {
-    position: absolute;
     bottom: 48px;
     left: 240px;
-    display: flex;
-    flex-direction: row;
     z-index: 10001;
-    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
-}
-
-#color-grab {
-    width: 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background-color: #c0c0c0;
-    border-top: 2px solid #ffffff;
-    border-left: 2px solid #ffffff;
-    border-bottom: 2px solid #808080;
-    padding: 2px 0;
-    gap: 2px;
-}
-
-#color-grab-track {
-    flex: 1;
-    width: 100%;
-    cursor: grab;
-    background-image:
-        radial-gradient(circle, #808080 1px, transparent 1px),
-        radial-gradient(circle, #808080 1px, transparent 1px);
-    background-size: 6px 6px;
-    background-position: 0 0, 3px 3px;
-}
-
-#color-grab-track:active {
-    cursor: grabbing;
-}
-
-#color-grab button {
-    width: 14px;
-    height: 14px;
-    font-size: 8px;
-    font-family: sans-serif;
-    font-weight: bold;
-    line-height: 1;
-    padding: 0;
-    border-top: 1px solid #ffffff;
-    border-left: 1px solid #ffffff;
-    border-right: 1px solid #808080;
-    border-bottom: 1px solid #808080;
-    background-color: #c0c0c0;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-
-#color-grab button:active {
-    border-top: 1px solid #808080;
-    border-left: 1px solid #808080;
-    border-right: 1px solid #ffffff;
-    border-bottom: 1px solid #ffffff;
-}
-
-#color-chrome {
-    background-color: #c0c0c0;
-    border-top: 2px solid #ffffff;
-    border-right: 2px solid #808080;
-    border-bottom: 2px solid #808080;
-}
-
-#color-window-body {
-    padding: 6px;
 }
 
 #color-palette {
@@ -268,80 +203,6 @@ body {
     border-left: 1px solid #808080;
     border-right: 1px solid #ffffff;
     border-bottom: 1px solid #ffffff;
-}
-
-/* Grab handle on the left */
-#window-grab {
-    width: 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background-color: #c0c0c0;
-    border-top: 2px solid #ffffff;
-    border-left: 2px solid #ffffff;
-    border-bottom: 2px solid #808080;
-    padding: 2px 0;
-    gap: 2px;
-}
-
-/* Draggable track area in the middle of grab bar */
-#grab-track {
-    flex: 1;
-    width: 100%;
-    cursor: grab;
-    background-image:
-        radial-gradient(circle, #808080 1px, transparent 1px),
-        radial-gradient(circle, #808080 1px, transparent 1px);
-    background-size: 6px 6px;
-    background-position: 0 0, 3px 3px;
-}
-
-#grab-track:active {
-    cursor: grabbing;
-}
-
-/* Small buttons on the grab bar */
-#window-grab button {
-    width: 14px;
-    height: 14px;
-    font-size: 8px;
-    font-family: sans-serif;
-    font-weight: bold;
-    line-height: 1;
-    padding: 0;
-    border-top: 1px solid #ffffff;
-    border-left: 1px solid #ffffff;
-    border-right: 1px solid #808080;
-    border-bottom: 1px solid #808080;
-    background-color: #c0c0c0;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-
-#window-grab button:active {
-    border-top: 1px solid #808080;
-    border-left: 1px solid #808080;
-    border-right: 1px solid #ffffff;
-    border-bottom: 1px solid #ffffff;
-}
-
-/* Chrome area (body) */
-#window-chrome {
-    display: flex;
-    flex-direction: column;
-    border-top: 2px solid #ffffff;
-    border-right: 2px solid #808080;
-    border-bottom: 2px solid #808080;
-    border-left: none;
-    background-color: #c0c0c0;
-}
-
-/* Window body */
-#window-body {
-    display: flex;
-    flex-direction: column;
-    padding: 6px;
-    gap: 4px;
 }
 
 /* Select container */
@@ -398,74 +259,12 @@ body {
     top: 20px;
     right: 20px;
     z-index: 10000;
-    display: flex;
-    flex-direction: row;
     width: 200px;
-    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
     font-family: sans-serif;
-}
-
-#settings-grab {
-    width: 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background-color: #c0c0c0;
-    border-top: 2px solid #ffffff;
-    border-left: 2px solid #ffffff;
-    border-bottom: 2px solid #808080;
-    padding: 2px 0;
-    gap: 2px;
-}
-
-#settings-grab-track {
-    flex: 1;
-    width: 100%;
-    cursor: grab;
-    background-image:
-        radial-gradient(circle, #808080 1px, transparent 1px),
-        radial-gradient(circle, #808080 1px, transparent 1px);
-    background-size: 6px 6px;
-    background-position: 0 0, 3px 3px;
-}
-
-#settings-grab-track:active {
-    cursor: grabbing;
-}
-
-#settings-grab button {
-    width: 14px;
-    height: 14px;
-    font-size: 8px;
-    font-family: sans-serif;
-    font-weight: bold;
-    line-height: 1;
-    padding: 0;
-    border-top: 1px solid #ffffff;
-    border-left: 1px solid #ffffff;
-    border-right: 1px solid #808080;
-    border-bottom: 1px solid #808080;
-    background-color: #c0c0c0;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-
-#settings-grab button:active {
-    border-top: 1px solid #808080;
-    border-left: 1px solid #808080;
-    border-right: 1px solid #ffffff;
-    border-bottom: 1px solid #ffffff;
 }
 
 #settings-chrome {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    border-top: 2px solid #ffffff;
-    border-right: 2px solid #808080;
-    border-bottom: 2px solid #808080;
-    border-left: none;
-    background-color: #c0c0c0;
 }
 
 #settings-body {
@@ -557,35 +356,6 @@ body {
 }
 
 /* Dark mode for settings panel */
-.dark-mode #settings-grab {
-    background-color: #3a3a3a;
-    border-top-color: #555555;
-    border-left-color: #555555;
-    border-bottom-color: #1a1a1a;
-}
-
-.dark-mode #settings-grab-track {
-    background-image:
-        radial-gradient(circle, #666666 1px, transparent 1px),
-        radial-gradient(circle, #666666 1px, transparent 1px);
-}
-
-.dark-mode #settings-grab button {
-    background-color: #3a3a3a;
-    border-top-color: #555555;
-    border-left-color: #555555;
-    border-right-color: #1a1a1a;
-    border-bottom-color: #1a1a1a;
-    color: #cccccc;
-}
-
-.dark-mode #settings-chrome {
-    background-color: #2d2d2d;
-    border-top-color: #555555;
-    border-right-color: #1a1a1a;
-    border-bottom-color: #1a1a1a;
-}
-
 .dark-mode #settings-body {
     color: #e0e0e0;
 }
@@ -656,29 +426,25 @@ body {
     padding: 0 2px;
 }
 
-/* Dark mode overrides */
-.dark-mode #nav-window {
+/* Dark mode overrides - shared window styles */
+.dark-mode .win-window {
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
 }
 
-.dark-mode #prefs-window {
-    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
-}
-
-.dark-mode #prefs-grab {
+.dark-mode .win-grab {
     background-color: #3a3a3a;
     border-top-color: #555555;
     border-left-color: #555555;
     border-bottom-color: #1a1a1a;
 }
 
-.dark-mode #prefs-grab-track {
+.dark-mode .win-grab-track {
     background-image:
         radial-gradient(circle, #666666 1px, transparent 1px),
         radial-gradient(circle, #666666 1px, transparent 1px);
 }
 
-.dark-mode #prefs-grab button {
+.dark-mode .win-grab button {
     background-color: #3a3a3a;
     color: #e0e0e0;
     border-top-color: #555555;
@@ -687,51 +453,18 @@ body {
     border-bottom-color: #1a1a1a;
 }
 
-.dark-mode #prefs-chrome {
-    background-color: #3a3a3a;
+.dark-mode .win-chrome {
+    background-color: #2d2d2d;
     border-top-color: #555555;
     border-right-color: #1a1a1a;
     border-bottom-color: #1a1a1a;
 }
 
-.dark-mode #prefs-window-body button {
+.dark-mode .win-body button {
     background-color: #3a3a3a;
     color: #e0e0e0;
     border-top-color: #555555;
     border-left-color: #555555;
-    border-right-color: #1a1a1a;
-    border-bottom-color: #1a1a1a;
-}
-
-.dark-mode #color-window {
-    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
-}
-
-.dark-mode #color-grab {
-    background-color: #3a3a3a;
-    border-top-color: #555555;
-    border-left-color: #555555;
-    border-bottom-color: #1a1a1a;
-}
-
-.dark-mode #color-grab-track {
-    background-image:
-        radial-gradient(circle, #666666 1px, transparent 1px),
-        radial-gradient(circle, #666666 1px, transparent 1px);
-}
-
-.dark-mode #color-grab button {
-    background-color: #3a3a3a;
-    color: #e0e0e0;
-    border-top-color: #555555;
-    border-left-color: #555555;
-    border-right-color: #1a1a1a;
-    border-bottom-color: #1a1a1a;
-}
-
-.dark-mode #color-chrome {
-    background-color: #3a3a3a;
-    border-top-color: #555555;
     border-right-color: #1a1a1a;
     border-bottom-color: #1a1a1a;
 }
@@ -742,35 +475,6 @@ body {
 
 .dark-mode .color-swatch:hover {
     border-color: #e0e0e0;
-}
-
-.dark-mode #window-grab {
-    background-color: #3a3a3a;
-    border-top-color: #555555;
-    border-left-color: #555555;
-    border-bottom-color: #1a1a1a;
-}
-
-.dark-mode #grab-track {
-    background-image:
-        radial-gradient(circle, #666666 1px, transparent 1px),
-        radial-gradient(circle, #666666 1px, transparent 1px);
-}
-
-.dark-mode #window-grab button {
-    background-color: #3a3a3a;
-    border-top-color: #555555;
-    border-left-color: #555555;
-    border-right-color: #1a1a1a;
-    border-bottom-color: #1a1a1a;
-    color: #cccccc;
-}
-
-.dark-mode #window-chrome {
-    background-color: #2d2d2d;
-    border-top-color: #555555;
-    border-right-color: #1a1a1a;
-    border-bottom-color: #1a1a1a;
 }
 
 .dark-mode .nav-select {

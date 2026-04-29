@@ -19,44 +19,44 @@
             </span>
         </footer>
 
-        <div id="nav-window">
-            <div id="window-grab">
+        <div id="nav-window" class="win-window">
+            <div id="window-grab" class="win-grab">
                 <button id="window-minimize" title="Minimize">_</button>
                 <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
-                <div id="grab-track"></div>
+                <div id="grab-track" class="win-grab-track"></div>
                 <button id="window-settings" title="Settings">&#9881;</button>
                 <button id="window-toggle-breadcrumb" title="Toggle breadcrumb">...</button>
             </div>
-            <div id="window-chrome">
-                <div id="window-body">
+            <div id="window-chrome" class="win-chrome">
+                <div id="window-body" class="win-body">
                     <div id="select-container"></div>
                     <div id="breadcrumb"></div>
                 </div>
             </div>
         </div>
 
-        <div id="prefs-window" style="display:none;">
-            <div id="prefs-grab">
+        <div id="prefs-window" class="win-window" style="display:none;">
+            <div id="prefs-grab" class="win-grab">
                 <button id="prefs-minimize" title="Minimize">_</button>
                 <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
-                <div id="prefs-grab-track"></div>
+                <div id="prefs-grab-track" class="win-grab-track"></div>
             </div>
-            <div id="prefs-chrome">
-                <div id="prefs-window-body">
+            <div id="prefs-chrome" class="win-chrome">
+                <div id="prefs-window-body" class="win-body">
                     <button id="pref-bgcolor">Background Colour</button>
                     <button id="pref-clear-cookies">Clear Cookies</button>
                 </div>
             </div>
         </div>
 
-        <div id="color-window" style="display:none;">
-            <div id="color-grab">
+        <div id="color-window" class="win-window" style="display:none;">
+            <div id="color-grab" class="win-grab">
                 <button id="color-minimize" title="Minimize">_</button>
                 <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
-                <div id="color-grab-track"></div>
+                <div id="color-grab-track" class="win-grab-track"></div>
             </div>
-            <div id="color-chrome">
-                <div id="color-window-body">
+            <div id="color-chrome" class="win-chrome">
+                <div id="color-window-body" class="win-body">
                     <div id="color-palette"></div>
                     <div id="color-preview"></div>
                 </div>
@@ -471,184 +471,81 @@
                 }
             });
 
-            // Draggable window via grab track (uses dock system).
+            // --- makeDraggable: shared helper for all windows ---
+            window.makeDraggable = function(dockId, winEl, trackEl) {
+                var dragging = false;
+                var offsetX = 0;
+                var offsetY = 0;
+
+                window.__dockSystem.register(dockId, winEl);
+
+                trackEl.addEventListener("mousedown", function(e) {
+                    dragging = true;
+                    var currentTop = winEl.offsetTop;
+                    var currentLeft = winEl.offsetLeft;
+                    winEl.style.bottom = "auto";
+                    winEl.style.right = "auto";
+                    winEl.style.top = currentTop + "px";
+                    winEl.style.left = currentLeft + "px";
+                    offsetX = e.clientX - currentLeft;
+                    offsetY = e.clientY - currentTop;
+                    e.preventDefault();
+                });
+
+                document.addEventListener("mousemove", function(e) {
+                    if (!dragging) return;
+                    window.__dockSystem.onDragMove(dockId, e.clientX - offsetX, e.clientY - offsetY);
+                });
+
+                document.addEventListener("mouseup", function() {
+                    if (dragging) window.__dockSystem.onDragEnd(dockId);
+                    dragging = false;
+                });
+
+                trackEl.addEventListener("touchstart", function(e) {
+                    dragging = true;
+                    var currentTop = winEl.offsetTop;
+                    var currentLeft = winEl.offsetLeft;
+                    winEl.style.bottom = "auto";
+                    winEl.style.right = "auto";
+                    winEl.style.top = currentTop + "px";
+                    winEl.style.left = currentLeft + "px";
+                    var touch = e.touches[0];
+                    offsetX = touch.clientX - currentLeft;
+                    offsetY = touch.clientY - currentTop;
+                    e.preventDefault();
+                });
+
+                document.addEventListener("touchmove", function(e) {
+                    if (!dragging) return;
+                    var touch = e.touches[0];
+                    window.__dockSystem.onDragMove(dockId, touch.clientX - offsetX, touch.clientY - offsetY);
+                });
+
+                document.addEventListener("touchend", function() {
+                    if (dragging) window.__dockSystem.onDragEnd(dockId);
+                    dragging = false;
+                });
+            };
+
+            // Register and make nav window draggable.
             (function() {
-                const win = document.getElementById("nav-window");
-                const track = document.getElementById("grab-track");
-                let dragging = false;
-                let offsetX = 0;
-                let offsetY = 0;
-
-                window.__dockSystem.register("navigator", win);
-
+                var win = document.getElementById("nav-window");
+                var track = document.getElementById("grab-track");
+                window.makeDraggable("navigator", win, track);
                 // Convert from bottom-anchored to top-anchored positioning immediately.
                 var initTop = win.offsetTop;
                 var initLeft = win.offsetLeft;
                 win.style.bottom = "auto";
                 win.style.top = initTop + "px";
                 win.style.left = initLeft + "px";
-
-                track.addEventListener("mousedown", function(e) {
-                    dragging = true;
-                    var currentTop = win.offsetTop;
-                    var currentLeft = win.offsetLeft;
-                    win.style.bottom = "auto";
-                    win.style.top = currentTop + "px";
-                    win.style.left = currentLeft + "px";
-                    offsetX = e.clientX - currentLeft;
-                    offsetY = e.clientY - currentTop;
-                    e.preventDefault();
-                });
-
-                document.addEventListener("mousemove", function(e) {
-                    if (!dragging) return;
-                    window.__dockSystem.onDragMove("navigator", e.clientX - offsetX, e.clientY - offsetY);
-                });
-
-                document.addEventListener("mouseup", function() {
-                    if (dragging) window.__dockSystem.onDragEnd("navigator");
-                    dragging = false;
-                });
-
-                // Touch support.
-                track.addEventListener("touchstart", function(e) {
-                    dragging = true;
-                    var currentTop = win.offsetTop;
-                    var currentLeft = win.offsetLeft;
-                    win.style.bottom = "auto";
-                    win.style.top = currentTop + "px";
-                    win.style.left = currentLeft + "px";
-                    const touch = e.touches[0];
-                    offsetX = touch.clientX - currentLeft;
-                    offsetY = touch.clientY - currentTop;
-                    e.preventDefault();
-                });
-
-                document.addEventListener("touchmove", function(e) {
-                    if (!dragging) return;
-                    const touch = e.touches[0];
-                    window.__dockSystem.onDragMove("navigator", touch.clientX - offsetX, touch.clientY - offsetY);
-                });
-
-                document.addEventListener("touchend", function() {
-                    if (dragging) window.__dockSystem.onDragEnd("navigator");
-                    dragging = false;
-                });
             })();
 
-            // Draggable prefs window via grab track (uses dock system).
-            (function() {
-                const win = document.getElementById("prefs-window");
-                const track = document.getElementById("prefs-grab-track");
-                let dragging = false;
-                let offsetX = 0;
-                let offsetY = 0;
+            // Register and make prefs window draggable.
+            window.makeDraggable("prefs", document.getElementById("prefs-window"), document.getElementById("prefs-grab-track"));
 
-                window.__dockSystem.register("prefs", win);
-
-                track.addEventListener("mousedown", function(e) {
-                    dragging = true;
-                    var currentTop = win.offsetTop;
-                    var currentLeft = win.offsetLeft;
-                    win.style.bottom = "auto";
-                    win.style.top = currentTop + "px";
-                    win.style.left = currentLeft + "px";
-                    offsetX = e.clientX - currentLeft;
-                    offsetY = e.clientY - currentTop;
-                    e.preventDefault();
-                });
-
-                document.addEventListener("mousemove", function(e) {
-                    if (!dragging) return;
-                    window.__dockSystem.onDragMove("prefs", e.clientX - offsetX, e.clientY - offsetY);
-                });
-
-                document.addEventListener("mouseup", function() {
-                    if (dragging) window.__dockSystem.onDragEnd("prefs");
-                    dragging = false;
-                });
-
-                track.addEventListener("touchstart", function(e) {
-                    dragging = true;
-                    var currentTop = win.offsetTop;
-                    var currentLeft = win.offsetLeft;
-                    win.style.bottom = "auto";
-                    win.style.top = currentTop + "px";
-                    win.style.left = currentLeft + "px";
-                    const touch = e.touches[0];
-                    offsetX = touch.clientX - currentLeft;
-                    offsetY = touch.clientY - currentTop;
-                    e.preventDefault();
-                });
-
-                document.addEventListener("touchmove", function(e) {
-                    if (!dragging) return;
-                    const touch = e.touches[0];
-                    window.__dockSystem.onDragMove("prefs", touch.clientX - offsetX, touch.clientY - offsetY);
-                });
-
-                document.addEventListener("touchend", function() {
-                    if (dragging) window.__dockSystem.onDragEnd("prefs");
-                    dragging = false;
-                });
-            })();
-
-            // Draggable color picker window via grab track (uses dock system).
-            (function() {
-                const win = document.getElementById("color-window");
-                const track = document.getElementById("color-grab-track");
-                let dragging = false;
-                let offsetX = 0;
-                let offsetY = 0;
-
-                window.__dockSystem.register("color", win);
-
-                track.addEventListener("mousedown", function(e) {
-                    dragging = true;
-                    var currentTop = win.offsetTop;
-                    var currentLeft = win.offsetLeft;
-                    win.style.bottom = "auto";
-                    win.style.top = currentTop + "px";
-                    win.style.left = currentLeft + "px";
-                    offsetX = e.clientX - currentLeft;
-                    offsetY = e.clientY - currentTop;
-                    e.preventDefault();
-                });
-
-                document.addEventListener("mousemove", function(e) {
-                    if (!dragging) return;
-                    window.__dockSystem.onDragMove("color", e.clientX - offsetX, e.clientY - offsetY);
-                });
-
-                document.addEventListener("mouseup", function() {
-                    if (dragging) window.__dockSystem.onDragEnd("color");
-                    dragging = false;
-                });
-
-                track.addEventListener("touchstart", function(e) {
-                    dragging = true;
-                    var currentTop = win.offsetTop;
-                    var currentLeft = win.offsetLeft;
-                    win.style.bottom = "auto";
-                    win.style.top = currentTop + "px";
-                    win.style.left = currentLeft + "px";
-                    const touch = e.touches[0];
-                    offsetX = touch.clientX - currentLeft;
-                    offsetY = touch.clientY - currentTop;
-                    e.preventDefault();
-                });
-
-                document.addEventListener("touchmove", function(e) {
-                    if (!dragging) return;
-                    const touch = e.touches[0];
-                    window.__dockSystem.onDragMove("color", touch.clientX - offsetX, touch.clientY - offsetY);
-                });
-
-                document.addEventListener("touchend", function() {
-                    if (dragging) window.__dockSystem.onDragEnd("color");
-                    dragging = false;
-                });
-            })();
+            // Register and make color picker window draggable.
+            window.makeDraggable("color", document.getElementById("color-window"), document.getElementById("color-grab-track"));
 
             // Window controls.
             document.getElementById("window-minimize").addEventListener("click", function() {
