@@ -8,263 +8,239 @@
         <link rel="stylesheet" href="style.css">
     </head>
     <body>
-        <header>
-            <h1>
-                <a href="/">Simon Richardson<span class="cursor">▉</span></a>
-            </h1>
-            <a href="/" title="Home">home</a>
-            <a href="/" title="Projects" id="projects">projects</a>
-        </header>
-        <section>
-            <h2>Projects</h2>
-            <dl>
-                <dt><a href="https://juju.is/" title="Juju Project">juju</a></dt>
-                <dd>
-                    <p>
-                        Juju is an open source application modeling tool. Juju 
-                        focuses on reducing the operation overhead of today's 
-                        software by facilitating quickly deploying, configuring, 
-                        scaling, integrating, and performing operational tasks 
-                        on a wide choice of public and private cloud services 
-                        along with bare metal servers and local container based 
-                        deployments.
-                    </p>
-                    <ul>
-                        <li>Repository: <a href="https://github.com/juju/juju" title="Juju Project">juju</a></li>
-                        <li>Tenure: April 2018 - Present</li>
-                        <li>Position: Software Engineer</li>
-                        <li>Language: Go</li>
-                    </ul>
-                </dd>
-                <dt><a href="https://convoyci.com/" title="Convoy CI Project">convoy</a></dt>
-                <dd>
-                    <p>
-                        Convoy reimagines continuous integration (CI) tooling, 
-                        by delivering new insights when testing code. Built on 
-                        a distributed database for commodity hardware whilst 
-                        not sacrificing performance and security in enterprise 
-                        settings.
-                    </p>
-                    <ul>
-                        <li>Repository: <a href="https://convoyci.com/" title="Convoy CI Project">convoy</a></li>
-                        <li>Tenor: January 2020 - Present</li>
-                        <li>Co-Founder & Software Engineer</li>
-                        <li>Language: Go</li>
-                    </ul>
-                </dd>
-                <dt><a href="https://github.com/spoke-d" title="spoke-d Project">spoke-d</a></dt>
-                <dd>
-                    <p>
-                        Development of ongoing libraries to help solve problems 
-                        within distributed systems, including task management, 
-                        publish and subscribe (pubsub) and clustered databases.
-                    </p>
-                    <ul>
-                        <li>Repository: <a href="https://github.com/spoke-d" title="spoke-d Project">spoke-d</a></li>
-                        <li>Tenure: Present</li>
-                        <li>Position: Software Engineer</li>
-                        <li>Language: Go</li>
-                    </ul>
-                </dd>
-                <dt><a href="https://github.com/fantasyland" title="Fantasy Land Project">fantasy land</a></dt>
-                <dd>
-                    <p>
-                        Design and implementation of libraries that integrate 
-                        with a specification for interoperability of common 
-                        algebraic structures in Javascript, with the aim of 
-                        bringing a focus of functional programming to Javascript 
-                        developers.
-                    </p>
-                    <ul>
-                        <li>Repository: <a href="https://github.com/fantasyland" title="Fantasy Land Project">fantasy land</a></li>
-                        <li>Position: Software Engineer</li>
-                        <li>Language: Javascript</li>
-                    </ul>
-                </dd>
-                <dt><a href="https://github.com/SimonRichardson/snowy" title="Snowy">snowy</a></dt>
-                <dd>
-                    <p>
-                        Snowy is a append only ledger for document contents, 
-                        that allow you to associate tags to a piece of content 
-                        that can be queryable from the rest end point. The 
-                        snowy application is split into two distinct parts, the 
-                        ledger and the associated content for that ledger entry.
-                    </p>
-                    <p>
-                        Modification of ledgers and contents is not possible, 
-                        instead new entities are required to be inserted in an 
-                        append only fashion, where a full revision and audit 
-                        trail can be viewed for each ledger.
-                    </p>
-                    <ul>
-                        <li>Repository: <a href="https://github.com/SimonRichardson/snowy" title="Snowy">snowy</a></li>
-                        <li>Position: Software Engineer</li>
-                        <li>Language: Go</li>
-                    </ul>
-                </dd>
-                <dt><a href="https://github.com/SimonRichardson/coherence" title="coherence">coherence</a></dt>
-                <dd>
-                    <p>
-                        Coherence is a limited Key/Value store, that aims to 
-                        provide high availability, with eventual consistency. 
-                        The limited aspect of the store is provided by a LRU so 
-                        that it can provide a windowed data set, that from the 
-                        outset guarantees to fit into smaller confined spaces.
-                    </p>
-                    <ul>
-                        <li>Repository: <a href="https://github.com/SimonRichardson/coherence" title="coherence">coherence</a></li>
-                        <li>Position: Software Engineer</li>
-                        <li>Language: Go</li>
-                    </ul>
-                </dd>
-            </dl>
-        </section>
-        <section>
-            <h2>About</h2>
-            <p>
-                Software Engineer, currently working at <a href="https://canonical.com" title="Employer">Canonical</a> on
-                the <a href="https://juju.is" title="Project">Juju</a> Project, solving
-                distributed application modelling.
-            </p>
-            <ul>
-                <li><a href="https://github.com/SimonRichardson" title="Github">github/simonrichardson</a></li>
-                <li><a href="https://hachyderm.io/@simonrichardson" title="Mastodon">@simonrichardson@hachyderm.io</a></li>
-            </ul>
-        </section>
-        <section>
-            <hr />
-        </section>
-        <footer>
-            Simon Richardson - 2024 - 
-            <a href="https://lighthouse-metrics.com/lighthouse/checks/c825a763-b928-428e-b394-3be9d77dc29c" title="light house score">100%</a>
+        <div id="background-content"></div>
+
+        <footer id="bottom-bar">
+            <span>Simon Richardson &copy; 2024</span>
+            <span class="bar-links">
+                <a href="https://github.com/SimonRichardson">github</a>
+                <a href="https://hachyderm.io/@simonrichardson">mastodon</a>
+            </span>
         </footer>
+
+        <div id="win95-window">
+            <div id="window-grab">
+                <button id="window-minimize" title="Minimize">_</button>
+                <div id="grab-track"></div>
+                <button id="window-toggle-breadcrumb" title="Toggle breadcrumb">...</button>
+            </div>
+            <div id="window-chrome">
+                <div id="window-body">
+                    <div id="select-container"></div>
+                    <div id="breadcrumb"></div>
+                </div>
+            </div>
+        </div>
+
         <script>
-            function nullable(val) {
-                return val === undefined || val === null;
-            }
-            function State(io) {
-                this.io = io;
-            }
-            State.prototype.projects = function(val) {
-                if (!nullable(val)) {
-                    const io = this.io();
-                    const state = io.state || {};
-                    io.replaceState({ "index": state.index, "projects": val }, "");
-                }
-                return (this.io().state || {"projects": false}).projects;
-            };
-            State.prototype.index = function(val) {
-                if (!nullable(val)) {
-                    const io = this.io();
-                    const state = io.state || {};
-                    io.replaceState({ "index": val, "projects": state.projects }, "");
-                }
-                return (this.io().state || {"index": -1}).index;
-            };
-            const state = new State(function() {
-                return window.history;
-            });
-
-            let projectsNode;
-            const a = document.querySelectorAll("section");
-            const b = zipWithIndex(a);
-            zipWith(b, repeat(state, b.length)).forEach(a => {
-                const [[index, node], state] = a;
-                if (index == 0) {
-                    if (!state.projects()) {
-                        node.style.display = "none";
+            // Navigation tree data.
+            // Each node is either a branch (children object) or a leaf (page string).
+            const navData = {
+                "Projects": {
+                    "Go": {
+                        "juju": { page: "pages/juju.html" },
+                        "convoy": { page: "pages/convoy.html" },
+                        "spoke-d": { page: "pages/spoke-d.html" },
+                        "snowy": { page: "pages/snowy.html" },
+                        "coherence": { page: "pages/coherence.html" }
+                    },
+                    "Javascript": {
+                        "fantasy land": { page: "pages/fantasyland.html" }
                     }
-                    projectsNode = node;
+                },
+                "About": {
+                    "Profile": { page: "pages/profile.html" },
+                    "Links": { page: "pages/links.html" }
+                }
+            };
+
+            function isLeaf(node) {
+                return node && typeof node.page === "string";
+            }
+
+            function getChildren(node) {
+                if (!node || isLeaf(node)) return null;
+                return Object.keys(node);
+            }
+
+            // Build and render cascading selects.
+            const container = document.getElementById("select-container");
+            const breadcrumbEl = document.getElementById("breadcrumb");
+            let currentPath = [];
+
+            function updateBreadcrumb() {
+                var trail = currentPath.join("/");
+                breadcrumbEl.textContent = trail ? "#" + trail : "";
+                if (trail) {
+                    window.location.hash = trail;
+                } else {
+                    history.replaceState(null, "", window.location.pathname);
+                }
+            }
+
+            function renderSelects(path) {
+                container.innerHTML = "";
+                currentPath = [];
+
+                let current = navData;
+                const segments = path || [];
+
+                // Render root select.
+                appendSelect(current, 0);
+
+                // Walk the path and render child selects.
+                for (let i = 0; i < segments.length; i++) {
+                    const key = segments[i];
+                    if (!current[key]) break;
+                    current = current[key];
+                    currentPath.push(key);
+
+                    // Highlight the selected option in the previous select.
+                    var prevSel = container.querySelectorAll("select")[i];
+                    if (prevSel) prevSel.value = key;
+
+                    if (isLeaf(current)) {
+                        loadPage(current.page);
+                        break;
+                    }
+                    appendSelect(current, i + 1);
+                }
+
+                updateBreadcrumb();
+            }
+
+            function appendSelect(node, depth) {
+                const keys = getChildren(node);
+                if (!keys) return;
+
+                const sel = document.createElement("select");
+                sel.setAttribute("size", "6");
+                sel.className = "win95-select";
+                sel.dataset.depth = depth;
+
+                keys.forEach(function(key) {
+                    const opt = document.createElement("option");
+                    opt.value = key;
+                    opt.textContent = key;
+                    sel.appendChild(opt);
+                });
+
+                sel.addEventListener("change", function() {
+                    onSelectChange(sel, node);
+                });
+
+                container.appendChild(sel);
+            }
+
+            function onSelectChange(sel, parentNode) {
+                const depth = parseInt(sel.dataset.depth, 10);
+                const selected = sel.value;
+                const child = parentNode[selected];
+
+                // Trim path to current depth and append new selection.
+                currentPath = currentPath.slice(0, depth);
+                currentPath.push(selected);
+
+                // Remove all selects deeper than this one.
+                const allSelects = container.querySelectorAll("select");
+                allSelects.forEach(function(s) {
+                    if (parseInt(s.dataset.depth, 10) > depth) {
+                        container.removeChild(s);
+                    }
+                });
+
+                if (isLeaf(child)) {
+                    loadPage(child.page);
+                } else if (child) {
+                    appendSelect(child, depth + 1);
+                }
+
+                updateBreadcrumb();
+            }
+
+            function loadPage(url) {
+                const bg = document.getElementById("background-content");
+                fetch(url)
+                    .then(function(res) { return res.text(); })
+                    .then(function(html) { bg.innerHTML = html; })
+                    .catch(function() { bg.innerHTML = "<p>Failed to load content.</p>"; });
+            }
+
+            // Initialize: restore from hash or show root.
+            (function() {
+                var hash = window.location.hash.replace(/^#/, "");
+                if (hash) {
+                    renderSelects(hash.split("/"));
+                } else {
+                    renderSelects();
+                }
+            })();
+
+            window.addEventListener("hashchange", function() {
+                var hash = window.location.hash.replace(/^#/, "");
+                if (hash) {
+                    renderSelects(hash.split("/"));
+                } else {
+                    renderSelects();
                 }
             });
 
-            const p = document.getElementById("projects");
-            p.addEventListener("click", e => {
-                if (!projectsNode) return;
+            // Draggable window via grab track.
+            (function() {
+                const win = document.getElementById("win95-window");
+                const track = document.getElementById("grab-track");
+                let dragging = false;
+                let offsetX = 0;
+                let offsetY = 0;
 
-                e.preventDefault();
-
-                const show = !flip(projectsNode);
-
-                state.projects(show);
-                collapse();
-            });
-
-            const d = document.querySelectorAll("dl dt a");
-            const e = zipWithIndex(d);
-            zipWith(e, repeat(state, e.length)).forEach(a => {
-                const [[index, node], state] = a;
-                if (state.index() == index) {
-                    flip(node.parentNode.nextSibling.nextSibling);
-                }
-
-                node.addEventListener("click", e => {
-                    if (!e.target) return;
-
+                track.addEventListener("mousedown", function(e) {
+                    dragging = true;
+                    offsetX = e.clientX - win.offsetLeft;
+                    offsetY = e.clientY - win.offsetTop;
                     e.preventDefault();
-
-                    const dd = e.target.parentNode.nextSibling.nextSibling;
-                    const value = flip(dd) ? -1 : index;
-
-                    state.index(value)
-                    collapse();
                 });
+
+                document.addEventListener("mousemove", function(e) {
+                    if (!dragging) return;
+                    win.style.left = (e.clientX - offsetX) + "px";
+                    win.style.top = (e.clientY - offsetY) + "px";
+                });
+
+                document.addEventListener("mouseup", function() {
+                    dragging = false;
+                });
+
+                // Touch support.
+                track.addEventListener("touchstart", function(e) {
+                    dragging = true;
+                    const touch = e.touches[0];
+                    offsetX = touch.clientX - win.offsetLeft;
+                    offsetY = touch.clientY - win.offsetTop;
+                    e.preventDefault();
+                });
+
+                document.addEventListener("touchmove", function(e) {
+                    if (!dragging) return;
+                    const touch = e.touches[0];
+                    win.style.left = (touch.clientX - offsetX) + "px";
+                    win.style.top = (touch.clientY - offsetY) + "px";
+                });
+
+                document.addEventListener("touchend", function() {
+                    dragging = false;
+                });
+            })();
+
+            // Window controls.
+            document.getElementById("window-minimize").addEventListener("click", function() {
+                const body = document.getElementById("window-body");
+                body.style.display = body.style.display === "none" ? "flex" : "none";
             });
-            function collapse() {
-                const d = document.querySelectorAll("dl dd");
-                const e = zipWithIndex(d);
-                zipWith(e, repeat(state, e.length)).forEach(a => {
-                    const [[index, node], state] = a;
-                    if (state.index() == index) {
-                        return;
-                    }
 
-                    const style = window.getComputedStyle(node);
-                    const display = style.getPropertyValue("display");
-                    node.style.display = "none";
-                });
-            }
-            function flip(dd) {
-                if (!dd) return false;
-
-                const style = window.getComputedStyle(dd);
-                const display = style.getPropertyValue("display");
-                dd.style.display = display == "none" ? "block" : "none";
-
-                return dd.style.display == "none";
-            }
-            function repeat(a, times) {
-                let result = [];
-                for(let i = 0; i < times; i++) {
-                    result[i] = a;
-                }
-                return result;
-            }
-            function zipWith(a, b) {
-                let result = [];
-                for(let i = 0; i < Math.min(a.length, b.length); i++) {
-                    result[i] = [a[i], b[i]];
-                }
-                return result;
-            }
-            function zipWithIndex(a) {
-                let result = [];
-                for(let i = 0; i < a.length; i++) {
-                    result[i] = [i, a[i]];
-                }
-                return result;
-            }
-            window.onpopstate = function(event) {
-                collapse();
-
-                zipWith(e, repeat(state, e.length)).forEach(a => {
-                    const [[index, node], state] = a;
-
-                    if (state.index() == index) {
-                        flip(node.parentNode.nextSibling.nextSibling);
-                    }
-                });
-            };
+            document.getElementById("window-toggle-breadcrumb").addEventListener("click", function() {
+                const bc = document.getElementById("breadcrumb");
+                bc.style.display = bc.style.display === "none" ? "block" : "none";
+            });
         </script>
     </body>
 </html>
