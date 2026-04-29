@@ -1,0 +1,299 @@
+<div id="settings-panel" class="win-window">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>A 3D plane with sin waves propagating along the z-axis. Waves spawn at the back and travel forward, fading out as they reach the front.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Speed
+                    <input type="range" id="setting-speed" min="1" max="50" value="8">
+                </label>
+                <label>
+                    Amplitude
+                    <input type="range" id="setting-amplitude" min="5" max="100" value="40">
+                </label>
+                <label>
+                    Frequency
+                    <input type="range" id="setting-frequency" min="1" max="20" value="8">
+                </label>
+                <label>
+                    Waves
+                    <input type="number" id="setting-waves" min="1" max="100" value="42">
+                </label>
+                <label>
+                    Auto-rotate
+                    <input type="checkbox" id="setting-autorotate" checked>
+                </label>
+                <button id="setting-apply">Apply</button>
+                <button id="setting-save">Save Image</button>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    var settingsPanel = document.getElementById("settings-panel");
+
+    var settings = {
+        speed: 8,
+        amplitude: 40,
+        frequency: 8,
+        numWaves: 42,
+        autoRotate: true
+    };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    document.getElementById("setting-speed").addEventListener("input", function() {
+        settings.speed = parseInt(this.value, 10);
+    });
+
+    document.getElementById("setting-amplitude").addEventListener("input", function() {
+        settings.amplitude = parseInt(this.value, 10);
+    });
+
+    document.getElementById("setting-frequency").addEventListener("input", function() {
+        settings.frequency = parseInt(this.value, 10);
+    });
+
+    document.getElementById("setting-autorotate").addEventListener("change", function() {
+        settings.autoRotate = this.checked;
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.numWaves = parseInt(document.getElementById("setting-waves").value, 10) || 4;
+        initWaves();
+    });
+
+    document.getElementById("setting-save").addEventListener("click", function() {
+        var link = document.createElement("a");
+        link.download = "canvas.png";
+        link.href = document.getElementById("home-canvas").toDataURL("image/png");
+        link.click();
+    });
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- 3D parameters ---
+    var PERSPECTIVE = 800;
+    var PLANE_SIZE = 250;
+    var GRID_RES = 40;
+
+    // --- Rotation via mouse/touch drag ---
+    var rotY = 0.4, rotX = -0.6;
+    var camDragging = false, lastMX = 0, lastMY = 0;
+
+    canvas.addEventListener("mousedown", function(e) {
+        camDragging = true;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.clientX - lastMX) * 0.005;
+        rotX += (e.clientY - lastMY) * 0.005;
+        rotX = Math.max(-1.2, Math.min(0.2, rotX));
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+
+    document.addEventListener("mouseup", function() {
+        camDragging = false;
+    });
+
+    canvas.addEventListener("touchstart", function(e) {
+        camDragging = true;
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+
+    document.addEventListener("touchmove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.touches[0].clientX - lastMX) * 0.005;
+        rotX += (e.touches[0].clientY - lastMY) * 0.005;
+        rotX = Math.max(-1.2, Math.min(0.2, rotX));
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+
+    document.addEventListener("touchend", function() {
+        camDragging = false;
+    });
+
+    function applyRotation(x, y, z) {
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
+    }
+
+    function project(x, y, z) {
+        var scale = PERSPECTIVE / (PERSPECTIVE + z);
+        return {
+            sx: canvas.width / 2 + x * scale,
+            sy: canvas.height / 2 - y * scale,
+            scale: scale
+        };
+    }
+
+    // --- Waves ---
+    // Each wave has a zOffset (0 to 1) representing position along the plane.
+    // zOffset moves from 1 (back) to 0 (front). When it reaches 0, it resets to 1.
+    // Each wave also has a noise array for organic distortion.
+    var waves = [];
+
+    function generateNoise(n) {
+        var arr = [];
+        for (var i = 0; i < n; i++) {
+            arr.push((Math.random() - 0.5) * 2);
+        }
+        return arr;
+    }
+
+    function smoothNoise(noise, i) {
+        var len = noise.length;
+        var i0 = Math.floor(i) % len;
+        var i1 = (i0 + 1) % len;
+        var frac = i - Math.floor(i);
+        return noise[i0] * (1 - frac) + noise[i1] * frac;
+    }
+
+    function initWaves() {
+        waves = [];
+        for (var i = 0; i < settings.numWaves; i++) {
+            waves.push({
+                zOffset: i / settings.numWaves,
+                noise: generateNoise(GRID_RES + 1),
+                phaseOffset: Math.random() * Math.PI * 2,
+                drift: (Math.random() - 0.5) * 0.02
+            });
+        }
+    }
+    initWaves();
+
+    var time = 0;
+
+    function updateWaves() {
+        var dt = settings.speed / 1000;
+        time += dt;
+        for (var i = 0; i < waves.length; i++) {
+            waves[i].zOffset -= dt;
+            if (waves[i].zOffset <= 0) {
+                waves[i].zOffset = 1;
+                waves[i].noise = generateNoise(GRID_RES + 1);
+                waves[i].phaseOffset = Math.random() * Math.PI * 2;
+                waves[i].drift = (Math.random() - 0.5) * 0.02;
+            }
+        }
+    }
+
+    // --- Drawing ---
+    function drawPlane() {
+        var corners = [
+            { x: -PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: 0, z:  PLANE_SIZE }
+        ];
+
+        var projected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(corners[i].x, corners[i].y, corners[i].z);
+            projected.push(project(r.x, r.y, r.z));
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(projected[0].sx, projected[0].sy);
+        ctx.lineTo(projected[1].sx, projected[1].sy);
+        ctx.lineTo(projected[2].sx, projected[2].sy);
+        ctx.lineTo(projected[3].sx, projected[3].sy);
+        ctx.closePath();
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+    }
+
+    function drawWaves() {
+        for (var w = 0; w < waves.length; w++) {
+            var wave = waves[w];
+            // Wave z position in world coordinates.
+            var waveZ = (wave.zOffset * 2 - 1) * PLANE_SIZE;
+            // Fade in from back (1.0), peak at middle (0.5), fade out at front (0.0).
+            var alpha = wave.zOffset <= 0.5 ? wave.zOffset * 2 : (1 - wave.zOffset) * 2;
+
+            // Draw the sin wave as a line across the x-axis at this z position.
+            var points = [];
+            var phase = (wave.phaseOffset + time) * 0.1;
+            for (var i = 0; i <= GRID_RES; i++) {
+                var t = i / GRID_RES;
+                var x = (t * 2 - 1) * PLANE_SIZE;
+                var taper = Math.sin(t * Math.PI);
+                var noiseVal = smoothNoise(wave.noise, i * 0.8) * settings.amplitude * 0.3;
+                var y = (Math.sin(t * settings.frequency * Math.PI + phase) * settings.amplitude + noiseVal) * alpha * taper;
+                var r = applyRotation(x, y, waveZ);
+                points.push(project(r.x, r.y, r.z));
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(points[0].sx, points[0].sy);
+            for (var i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].sx, points[i].sy);
+            }
+            ctx.strokeStyle = "rgba(255, 255, 255, " + alpha.toFixed(2) + ")";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
+
+    // --- Animation loop ---
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (settings.autoRotate && !camDragging) {
+            rotY += 0.002;
+        }
+
+        updateWaves();
+        drawPlane();
+        drawWaves();
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    loop();
+})();
+</script>
