@@ -7,7 +7,7 @@
 body {
     font-family: sans-serif;
     font-size: 12px;
-    background-color: #d1d1d1;
+    background-color: #1d1d1d;
     min-height: 100vh;
     overflow: hidden;
 }
@@ -64,10 +64,10 @@ body {
 }
 
 /* Floating Win95 window */
-#win95-window {
+#nav-window {
     position: absolute;
-    top: 80px;
-    left: 120px;
+    bottom: 48px;
+    left: 20px;
     display: flex;
     flex-direction: row;
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
@@ -155,7 +155,7 @@ body {
 }
 
 /* Win95-style select elements */
-.win95-select {
+.nav-select {
     font-family: sans-serif;
     font-size: 12px;
     min-width: 130px;
@@ -169,11 +169,11 @@ body {
     overflow-y: auto;
 }
 
-.win95-select option {
+.nav-select option {
     padding: 1px 4px;
 }
 
-.win95-select option:checked {
+.nav-select option:checked {
     background-color: #000080;
     color: #ffffff;
 }
@@ -411,7 +411,7 @@ body {
 }
 
 /* Dark mode overrides */
-.dark-mode #win95-window {
+.dark-mode #nav-window {
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
 }
 
@@ -444,7 +444,7 @@ body {
     border-bottom-color: #1a1a1a;
 }
 
-.dark-mode .win95-select {
+.dark-mode .nav-select {
     background-color: #1e1e1e;
     color: #e0e0e0;
     border-top-color: #1a1a1a;
@@ -453,7 +453,7 @@ body {
     border-bottom-color: #555555;
 }
 
-.dark-mode .win95-select option:checked {
+.dark-mode .nav-select option:checked {
     background-color: #264f78;
     color: #ffffff;
 }

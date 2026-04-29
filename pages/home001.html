@@ -1,6 +1,7 @@
 <div id="settings-panel">
     <div id="settings-grab">
         <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
         <div id="settings-grab-track"></div>
     </div>
     <div id="settings-chrome">
@@ -38,13 +39,15 @@
 
     document.getElementById("setting-apply").addEventListener("click", function() {
         settings.numBalls = parseInt(settingsBalls.value, 10) || 18;
-        loadPage("pages/home001.html");
+        resetBalls();
     });
 
-    // Settings panel drag.
+    // Settings panel drag (uses dock system).
     (function() {
         var track = document.getElementById("settings-grab-track");
         var dragging = false, offsetX = 0, offsetY = 0;
+
+        window.__dockSystem.register("settings", settingsPanel);
 
         track.addEventListener("mousedown", function(e) {
             dragging = true;
@@ -55,12 +58,12 @@
 
         document.addEventListener("mousemove", function(e) {
             if (!dragging) return;
-            settingsPanel.style.left = (e.clientX - offsetX) + "px";
-            settingsPanel.style.top = (e.clientY - offsetY) + "px";
             settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", e.clientX - offsetX, e.clientY - offsetY);
         });
 
         document.addEventListener("mouseup", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
             dragging = false;
         });
 
@@ -75,12 +78,12 @@
         document.addEventListener("touchmove", function(e) {
             if (!dragging) return;
             var touch = e.touches[0];
-            settingsPanel.style.left = (touch.clientX - offsetX) + "px";
-            settingsPanel.style.top = (touch.clientY - offsetY) + "px";
             settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", touch.clientX - offsetX, touch.clientY - offsetY);
         });
 
         document.addEventListener("touchend", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
             dragging = false;
         });
     })();
@@ -216,24 +219,27 @@
 
     // --- Create balls ---
     var balls = [];
-    var numBalls = settings.numBalls;
+    var centerBall = null;
 
-    // Fixed large center circle.
-    var centerRadius = Math.min(canvas.width, canvas.height) / 5;
-    var centerBall = new Ball(centerRadius, canvas.width / 2, canvas.height / 2, 0, 0);
-    centerBall.fixed = true;
-    balls.push(centerBall);
+    function resetBalls() {
+        balls.length = 0;
+        var centerRadius = Math.min(canvas.width, canvas.height) / 5;
+        centerBall = new Ball(centerRadius, canvas.width / 2, canvas.height / 2, 0, 0);
+        centerBall.fixed = true;
+        balls.push(centerBall);
 
-    for (var i = 0; i < numBalls; i++) {
-        var radius = Math.random() * 60 + 60;
-        var px = Math.random() * canvas.width;
-        var py = Math.random() * canvas.height;
-        var vAngle = Math.random() * Math.PI * 2;
-        var vLen = Math.random() * 10;
-        var b = new Ball(radius, px, py, vAngle, vLen);
-        b.fixed = false;
-        balls.push(b);
+        for (var i = 0; i < settings.numBalls; i++) {
+            var radius = Math.random() * 60 + 60;
+            var px = Math.random() * canvas.width;
+            var py = Math.random() * canvas.height;
+            var vAngle = Math.random() * Math.PI * 2;
+            var vLen = Math.random() * 10;
+            var b = new Ball(radius, px, py, vAngle, vLen);
+            b.fixed = false;
+            balls.push(b);
+        }
     }
+    resetBalls();
 
     // --- Drag support ---
     var dragged = null;

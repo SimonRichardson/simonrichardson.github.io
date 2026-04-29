@@ -19,9 +19,10 @@
             </span>
         </footer>
 
-        <div id="win95-window">
+        <div id="nav-window">
             <div id="window-grab">
                 <button id="window-minimize" title="Minimize">_</button>
+                <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
                 <div id="grab-track"></div>
                 <button id="window-toggle-breadcrumb" title="Toggle breadcrumb">...</button>
             </div>
@@ -35,6 +36,105 @@
 
 
         <script>
+            // --- Window docking system ---
+            // Windows register themselves here. When dragged near each other, they dock.
+            window.__dockSystem = (function() {
+                var SNAP_THRESHOLD = 12;
+                var windows = {};
+                var docked = false;
+                var dockOffsetY = 0;
+
+                function register(id, element) {
+                    windows[id] = element;
+                }
+
+                function unregister(id) {
+                    delete windows[id];
+                    if (id === "settings") undock();
+                }
+
+                function isDocked() { return docked; }
+
+                function dock() {
+                    var nav = windows["navigator"];
+                    var set = windows["settings"];
+                    if (!nav || !set) return;
+                    // Snap settings directly below nav, grab bars aligned (left edges match).
+                    set.style.left = nav.offsetLeft + "px";
+                    set.style.top = (nav.offsetTop + nav.offsetHeight + 1) + "px";
+                    set.style.right = "auto";
+                    dockOffsetY = nav.offsetHeight + 1;
+                    docked = true;
+                    showUndockButtons();
+                }
+
+                function undock() {
+                    docked = false;
+                    hideUndockButtons();
+                }
+
+                function showUndockButtons() {
+                    document.querySelectorAll(".dock-undock-btn").forEach(function(b) {
+                        b.style.display = "block";
+                    });
+                }
+
+                function hideUndockButtons() {
+                    document.querySelectorAll(".dock-undock-btn").forEach(function(b) {
+                        b.style.display = "none";
+                    });
+                }
+
+                function onDragMove(draggedId, newLeft, newTop) {
+                    var el = windows[draggedId];
+                    if (!el) return;
+
+                    el.style.left = newLeft + "px";
+                    el.style.top = newTop + "px";
+                    if (draggedId === "settings") el.style.right = "auto";
+
+                    if (docked) {
+                        var nav = windows["navigator"];
+                        var set = windows["settings"];
+                        if (draggedId === "navigator" && set) {
+                            set.style.left = newLeft + "px";
+                            set.style.top = (newTop + dockOffsetY) + "px";
+                            set.style.right = "auto";
+                        } else if (draggedId === "settings" && nav) {
+                            nav.style.left = newLeft + "px";
+                            nav.style.top = (newTop - dockOffsetY) + "px";
+                        }
+                    }
+                }
+
+                function onDragEnd(draggedId) {
+                    if (docked) return; // Already docked, undock only via button.
+                    // Check if settings is below nav with grab bars aligned.
+                    var nav = windows["navigator"];
+                    var set = windows["settings"];
+                    if (!nav || !set) return;
+                    var navRect = nav.getBoundingClientRect();
+                    var setRect = set.getBoundingClientRect();
+                    // Grab bars aligned = left edges within threshold.
+                    var leftDiff = Math.abs(setRect.left - navRect.left);
+                    if (leftDiff > SNAP_THRESHOLD) return;
+                    // Settings must be below nav, within threshold.
+                    var vertGap = setRect.top - navRect.bottom;
+                    if (vertGap < -SNAP_THRESHOLD || vertGap > SNAP_THRESHOLD) return;
+                    dock();
+                }
+
+                return {
+                    register: register,
+                    unregister: unregister,
+                    isDocked: isDocked,
+                    dock: dock,
+                    undock: undock,
+                    onDragMove: onDragMove,
+                    onDragEnd: onDragEnd
+                };
+            })();
+
             // Navigation tree data.
             // Each node is either a branch (children object) or a leaf (page string).
             const navData = {
@@ -120,7 +220,7 @@
 
                 const sel = document.createElement("select");
                 sel.setAttribute("size", "6");
-                sel.className = "win95-select";
+                sel.className = "nav-select";
                 sel.dataset.depth = depth;
 
                 keys.forEach(function(key) {
@@ -169,6 +269,8 @@
                     cancelAnimationFrame(window.__homeCanvasAnimId);
                     window.__homeCanvasAnimId = null;
                 }
+                // Unregister any fragment-owned windows from dock system.
+                window.__dockSystem.unregister("settings");
 
                 var bg = document.getElementById("background-content");
                 fetch(url)
@@ -207,13 +309,15 @@
                 }
             });
 
-            // Draggable window via grab track.
+            // Draggable window via grab track (uses dock system).
             (function() {
-                const win = document.getElementById("win95-window");
+                const win = document.getElementById("nav-window");
                 const track = document.getElementById("grab-track");
                 let dragging = false;
                 let offsetX = 0;
                 let offsetY = 0;
+
+                window.__dockSystem.register("navigator", win);
 
                 track.addEventListener("mousedown", function(e) {
                     dragging = true;
@@ -224,11 +328,11 @@
 
                 document.addEventListener("mousemove", function(e) {
                     if (!dragging) return;
-                    win.style.left = (e.clientX - offsetX) + "px";
-                    win.style.top = (e.clientY - offsetY) + "px";
+                    window.__dockSystem.onDragMove("navigator", e.clientX - offsetX, e.clientY - offsetY);
                 });
 
                 document.addEventListener("mouseup", function() {
+                    if (dragging) window.__dockSystem.onDragEnd("navigator");
                     dragging = false;
                 });
 
@@ -244,11 +348,11 @@
                 document.addEventListener("touchmove", function(e) {
                     if (!dragging) return;
                     const touch = e.touches[0];
-                    win.style.left = (touch.clientX - offsetX) + "px";
-                    win.style.top = (touch.clientY - offsetY) + "px";
+                    window.__dockSystem.onDragMove("navigator", touch.clientX - offsetX, touch.clientY - offsetY);
                 });
 
                 document.addEventListener("touchend", function() {
+                    if (dragging) window.__dockSystem.onDragEnd("navigator");
                     dragging = false;
                 });
             })();
@@ -262,6 +366,13 @@
             document.getElementById("window-toggle-breadcrumb").addEventListener("click", function() {
                 const bc = document.getElementById("breadcrumb");
                 bc.style.display = bc.style.display === "none" ? "block" : "none";
+            });
+
+            // Undock buttons - all buttons with class dock-undock-btn trigger undock.
+            document.addEventListener("click", function(e) {
+                if (e.target.classList.contains("dock-undock-btn")) {
+                    window.__dockSystem.undock();
+                }
             });
 
             // Dark mode toggle.
