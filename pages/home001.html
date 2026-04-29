@@ -1,6 +1,89 @@
+<div id="settings-panel">
+    <div id="settings-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <div id="settings-grab-track"></div>
+    </div>
+    <div id="settings-chrome">
+        <div id="settings-body">
+            <label>
+                Gravity
+                <input type="range" id="setting-gravity" min="0" max="100" value="20">
+            </label>
+            <label>
+                Balls
+                <input type="number" id="setting-balls" min="1" max="40" value="18">
+            </label>
+            <button id="setting-apply">Apply</button>
+        </div>
+    </div>
+</div>
 <canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
 <script>
 (function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+    var settingsGravity = document.getElementById("setting-gravity");
+    var settingsBalls = document.getElementById("setting-balls");
+
+    var settings = { gravity: 0.1, numBalls: 18 };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    settingsGravity.addEventListener("input", function() {
+        settings.gravity = parseFloat(this.value) / 200;
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.numBalls = parseInt(settingsBalls.value, 10) || 18;
+        loadPage("pages/home001.html");
+    });
+
+    // Settings panel drag.
+    (function() {
+        var track = document.getElementById("settings-grab-track");
+        var dragging = false, offsetX = 0, offsetY = 0;
+
+        track.addEventListener("mousedown", function(e) {
+            dragging = true;
+            offsetX = e.clientX - settingsPanel.offsetLeft;
+            offsetY = e.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            settingsPanel.style.left = (e.clientX - offsetX) + "px";
+            settingsPanel.style.top = (e.clientY - offsetY) + "px";
+            settingsPanel.style.right = "auto";
+        });
+
+        document.addEventListener("mouseup", function() {
+            dragging = false;
+        });
+
+        track.addEventListener("touchstart", function(e) {
+            dragging = true;
+            var touch = e.touches[0];
+            offsetX = touch.clientX - settingsPanel.offsetLeft;
+            offsetY = touch.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var touch = e.touches[0];
+            settingsPanel.style.left = (touch.clientX - offsetX) + "px";
+            settingsPanel.style.top = (touch.clientY - offsetY) + "px";
+            settingsPanel.style.right = "auto";
+        });
+
+        document.addEventListener("touchend", function() {
+            dragging = false;
+        });
+    })();
     var canvas = document.getElementById("home-canvas");
     if (!canvas) return;
     var ctx = canvas.getContext("2d");
@@ -133,7 +216,7 @@
 
     // --- Create balls ---
     var balls = [];
-    var numBalls = 18;
+    var numBalls = settings.numBalls;
 
     // Fixed large center circle.
     var centerRadius = Math.min(canvas.width, canvas.height) / 5;
@@ -254,6 +337,20 @@
         centerBall.x = canvas.width / 2;
         centerBall.y = canvas.height / 2;
         centerBall.radius = Math.min(canvas.width, canvas.height) / 5;
+
+        // Apply slight gravity toward center ball (read live from settings).
+        var gravity = settings.gravity;
+        for (var i = 1; i < balls.length; i++) {
+            var b = balls[i];
+            if (b === dragged) continue;
+            var dx = centerBall.x - b.x;
+            var dy = centerBall.y - b.y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0) {
+                b.vx += (dx / dist) * gravity;
+                b.vy += (dy / dist) * gravity;
+            }
+        }
 
         for (var i = 0; i < balls.length - 1; i++) {
             for (var j = i + 1; j < balls.length; j++) {

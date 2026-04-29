@@ -33,11 +33,14 @@
             </div>
         </div>
 
+
         <script>
             // Navigation tree data.
             // Each node is either a branch (children object) or a leaf (page string).
             const navData = {
-                "Home": { page: "pages/home001.html" },
+                "Home": { 
+                    "Gravitas": { page: "pages/home001.html" },
+                },
                 "Projects": {
                     "Go": {
                         "juju": { page: "pages/juju.html" },
@@ -265,6 +268,7 @@
             document.getElementById("dark-mode-toggle").addEventListener("click", function() {
                 document.body.classList.toggle("dark-mode");
             });
+
         </script>
     </body>
 </html>
