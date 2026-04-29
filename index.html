@@ -138,12 +138,12 @@
             // Navigation tree data.
             // Each node is either a branch (children object) or a leaf (page string).
             const navData = {
-                "Home": { 
-                    "Gravitas": { page: "pages/home001.html" },
-                    "Ribbons": { page: "pages/home002.html" },
-                    "Orbit": { page: "pages/home003.html" },
-                    "Plane": { page: "pages/home004.html" },
-                    "Terrain": { page: "pages/home005.html" },
+                "Toys": { 
+                    "Gravitas": { page: "pages/toys001.html" },
+                    "Ribbons": { page: "pages/toys002.html" },
+                    "Orbit": { page: "pages/toys003.html" },
+                    "Plane": { page: "pages/toys004.html" },
+                    "Terrain": { page: "pages/toys005.html" },
                 },
                 "Projects": {
                     "Go": {
@@ -292,13 +292,13 @@
                     .catch(function() { bg.innerHTML = "<p>Failed to load content.</p>"; });
             }
 
-            // Initialize: restore from hash or load home.
-            // Pick a random home page from the "Home" branch.
+            // Initialize: restore from hash or load random toy.
+            // Pick a random toy page from the "Toys" branch.
             function randomHomePage() {
-                var homeNode = navData["Home"];
+                var toysNode = navData["Toys"];
                 var pages = [];
-                for (var key in homeNode) {
-                    if (homeNode[key].page) pages.push(homeNode[key].page);
+                for (var key in toysNode) {
+                    if (toysNode[key].page) pages.push(toysNode[key].page);
                 }
                 return pages[Math.floor(Math.random() * pages.length)];
             }
