@@ -24,6 +24,7 @@
                 <button id="window-minimize" title="Minimize">_</button>
                 <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
                 <div id="grab-track"></div>
+                <button id="window-settings" title="Settings">&#9881;</button>
                 <button id="window-toggle-breadcrumb" title="Toggle breadcrumb">...</button>
             </div>
             <div id="window-chrome">
@@ -34,15 +35,29 @@
             </div>
         </div>
 
+        <div id="prefs-window" style="display:none;">
+            <div id="prefs-grab">
+                <button id="prefs-minimize" title="Minimize">_</button>
+                <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+                <div id="prefs-grab-track"></div>
+            </div>
+            <div id="prefs-chrome">
+                <div id="prefs-window-body">
+                    <button id="pref-bgcolor">Background Colour</button>
+                    <button id="pref-clear-cookies">Clear Cookies</button>
+                </div>
+            </div>
+        </div>
+
 
         <script>
             // --- Window docking system ---
-            // Windows register themselves here. When dragged near each other, they dock.
+            // Any window can dock with any other window, forming a vertical chain.
             window.__dockSystem = (function() {
-                var SNAP_THRESHOLD = 12;
+                var SNAP_THRESHOLD = 14;
                 var windows = {};
-                var docked = false;
-                var dockOffsetY = 0;
+                // dockChain: ordered array of window ids forming a docked group (top to bottom)
+                var dockChain = [];
 
                 function register(id, element) {
                     windows[id] = element;
@@ -50,33 +65,50 @@
 
                 function unregister(id) {
                     delete windows[id];
-                    if (id === "settings") undock();
+                    var idx = dockChain.indexOf(id);
+                    if (idx !== -1) {
+                        dockChain.splice(idx, 1);
+                        if (dockChain.length < 2) undock();
+                        else repositionChain();
+                    }
                 }
 
-                function isDocked() { return docked; }
+                function isDocked() { return dockChain.length >= 2; }
 
-                function dock() {
-                    var nav = windows["navigator"];
-                    var set = windows["settings"];
-                    if (!nav || !set) return;
-                    // Snap settings directly below nav, grab bars aligned (left edges match).
-                    set.style.left = nav.offsetLeft + "px";
-                    set.style.top = (nav.offsetTop + nav.offsetHeight + 1) + "px";
-                    set.style.right = "auto";
-                    dockOffsetY = nav.offsetHeight + 1;
-                    docked = true;
+                function repositionChain() {
+                    if (dockChain.length < 2) return;
+                    var first = windows[dockChain[0]];
+                    if (!first) return;
+                    var top = first.offsetTop;
+                    var left = first.offsetLeft;
+                    for (var i = 1; i < dockChain.length; i++) {
+                        var prev = windows[dockChain[i - 1]];
+                        var el = windows[dockChain[i]];
+                        if (!prev || !el) continue;
+                        top += prev.offsetHeight + 1;
+                        el.style.left = left + "px";
+                        el.style.top = top + "px";
+                        el.style.right = "auto";
+                    }
                     showUndockButtons();
                 }
 
                 function undock() {
-                    docked = false;
+                    dockChain = [];
                     hideUndockButtons();
                 }
 
                 function showUndockButtons() {
                     document.querySelectorAll(".dock-undock-btn").forEach(function(b) {
-                        b.style.display = "block";
+                        b.style.display = "none";
                     });
+                    for (var i = 0; i < dockChain.length; i++) {
+                        var el = windows[dockChain[i]];
+                        if (el) {
+                            var btn = el.querySelector(".dock-undock-btn");
+                            if (btn) btn.style.display = "block";
+                        }
+                    }
                 }
 
                 function hideUndockButtons() {
@@ -85,50 +117,149 @@
                     });
                 }
 
+                function getChainOffsets() {
+                    var offsets = {};
+                    if (dockChain.length < 2) return offsets;
+                    var cumulative = 0;
+                    offsets[dockChain[0]] = 0;
+                    for (var i = 1; i < dockChain.length; i++) {
+                        var prev = windows[dockChain[i - 1]];
+                        cumulative += (prev ? prev.offsetHeight : 0) + 1;
+                        offsets[dockChain[i]] = cumulative;
+                    }
+                    return offsets;
+                }
+
                 function onDragMove(draggedId, newLeft, newTop) {
                     var el = windows[draggedId];
                     if (!el) return;
 
                     el.style.left = newLeft + "px";
                     el.style.top = newTop + "px";
-                    if (draggedId === "settings") el.style.right = "auto";
+                    el.style.right = "auto";
 
-                    if (docked) {
-                        var nav = windows["navigator"];
-                        var set = windows["settings"];
-                        if (draggedId === "navigator" && set) {
-                            set.style.left = newLeft + "px";
-                            set.style.top = (newTop + dockOffsetY) + "px";
-                            set.style.right = "auto";
-                        } else if (draggedId === "settings" && nav) {
-                            nav.style.left = newLeft + "px";
-                            nav.style.top = (newTop - dockOffsetY) + "px";
+                    if (dockChain.length >= 2 && dockChain.indexOf(draggedId) !== -1) {
+                        var offsets = getChainOffsets();
+                        var myOffset = offsets[draggedId] || 0;
+                        var baseTop = newTop - myOffset;
+                        for (var i = 0; i < dockChain.length; i++) {
+                            var id = dockChain[i];
+                            if (id === draggedId) continue;
+                            var w = windows[id];
+                            if (w) {
+                                w.style.left = newLeft + "px";
+                                w.style.top = (baseTop + offsets[id]) + "px";
+                                w.style.right = "auto";
+                            }
                         }
                     }
                 }
 
                 function onDragEnd(draggedId) {
-                    if (docked) return; // Already docked, undock only via button.
-                    // Check if settings is below nav with grab bars aligned.
-                    var nav = windows["navigator"];
-                    var set = windows["settings"];
-                    if (!nav || !set) return;
-                    var navRect = nav.getBoundingClientRect();
-                    var setRect = set.getBoundingClientRect();
-                    // Grab bars aligned = left edges within threshold.
-                    var leftDiff = Math.abs(setRect.left - navRect.left);
-                    if (leftDiff > SNAP_THRESHOLD) return;
-                    // Settings must be below nav, within threshold.
-                    var vertGap = setRect.top - navRect.bottom;
-                    if (vertGap < -SNAP_THRESHOLD || vertGap > SNAP_THRESHOLD) return;
-                    dock();
+                    var draggedEl = windows[draggedId];
+                    if (!draggedEl) return;
+                    var draggedRect = draggedEl.getBoundingClientRect();
+
+                    // If already in a chain, check if another free window wants to join
+                    if (dockChain.length >= 2 && dockChain.indexOf(draggedId) !== -1) {
+                        // Check if any non-chained window is near the chain
+                        var lastId = dockChain[dockChain.length - 1];
+                        var lastEl = windows[lastId];
+                        var firstId = dockChain[0];
+                        var firstEl = windows[firstId];
+                        if (!lastEl || !firstEl) return;
+                        var lastRect = lastEl.getBoundingClientRect();
+                        var firstRect = firstEl.getBoundingClientRect();
+
+                        var ids = Object.keys(windows);
+                        for (var i = 0; i < ids.length; i++) {
+                            var id = ids[i];
+                            if (dockChain.indexOf(id) !== -1) continue;
+                            var el = windows[id];
+                            if (!el || el.style.display === "none") continue;
+                            var rect = el.getBoundingClientRect();
+                            var leftDiff = Math.abs(rect.left - firstRect.left);
+                            if (leftDiff > SNAP_THRESHOLD) continue;
+
+                            // Check below chain
+                            var belowGap = rect.top - lastRect.bottom;
+                            if (belowGap >= -SNAP_THRESHOLD && belowGap <= SNAP_THRESHOLD) {
+                                dockChain.push(id);
+                                repositionChain();
+                                return;
+                            }
+                            // Check above chain
+                            var aboveGap = firstRect.top - rect.bottom;
+                            if (aboveGap >= -SNAP_THRESHOLD && aboveGap <= SNAP_THRESHOLD) {
+                                dockChain.unshift(id);
+                                repositionChain();
+                                return;
+                            }
+                        }
+                        return;
+                    }
+
+                    // Not in a chain yet - check if dragged window docks with an existing chain
+                    if (dockChain.length >= 2) {
+                        var lastId = dockChain[dockChain.length - 1];
+                        var lastEl = windows[lastId];
+                        var firstId = dockChain[0];
+                        var firstEl = windows[firstId];
+                        if (lastEl && firstEl) {
+                            var lastRect = lastEl.getBoundingClientRect();
+                            var firstRect = firstEl.getBoundingClientRect();
+                            var leftDiff = Math.abs(draggedRect.left - firstRect.left);
+                            if (leftDiff <= SNAP_THRESHOLD) {
+                                var belowGap = draggedRect.top - lastRect.bottom;
+                                if (belowGap >= -SNAP_THRESHOLD && belowGap <= SNAP_THRESHOLD) {
+                                    dockChain.push(draggedId);
+                                    repositionChain();
+                                    return;
+                                }
+                                var aboveGap = firstRect.top - draggedRect.bottom;
+                                if (aboveGap >= -SNAP_THRESHOLD && aboveGap <= SNAP_THRESHOLD) {
+                                    dockChain.unshift(draggedId);
+                                    repositionChain();
+                                    return;
+                                }
+                            }
+                        }
+                        return;
+                    }
+
+                    // No chain exists - check if dragged window can form a new pair
+                    var ids = Object.keys(windows);
+                    for (var i = 0; i < ids.length; i++) {
+                        var id = ids[i];
+                        if (id === draggedId) continue;
+                        var el = windows[id];
+                        if (!el || el.style.display === "none") continue;
+                        var rect = el.getBoundingClientRect();
+                        var leftDiff = Math.abs(draggedRect.left - rect.left);
+                        if (leftDiff > SNAP_THRESHOLD) continue;
+
+                        // Dragged is below target
+                        var belowGap = draggedRect.top - rect.bottom;
+                        if (belowGap >= -SNAP_THRESHOLD && belowGap <= SNAP_THRESHOLD) {
+                            dockChain = [id, draggedId];
+                            repositionChain();
+                            return;
+                        }
+                        // Dragged is above target
+                        var aboveGap = rect.top - draggedRect.bottom;
+                        if (aboveGap >= -SNAP_THRESHOLD && aboveGap <= SNAP_THRESHOLD) {
+                            dockChain = [draggedId, id];
+                            repositionChain();
+                            return;
+                        }
+                    }
                 }
 
                 return {
                     register: register,
                     unregister: unregister,
                     isDocked: isDocked,
-                    dock: dock,
+                    dock: repositionChain,
                     undock: undock,
                     onDragMove: onDragMove,
                     onDragEnd: onDragEnd
@@ -182,8 +313,10 @@
                 breadcrumbEl.textContent = trail ? "#" + trail : "";
                 if (trail) {
                     window.location.hash = trail;
+                    document.title = "Simon Richardson / " + currentPath.join(" - ");
                 } else {
                     history.replaceState(null, "", window.location.pathname);
+                    document.title = "Simon Richardson";
                 }
             }
 
@@ -223,7 +356,7 @@
                 if (!keys) return;
 
                 const sel = document.createElement("select");
-                sel.setAttribute("size", "6");
+                sel.setAttribute("size", Math.min(keys.length, 6).toString());
                 sel.className = "nav-select";
                 sel.dataset.depth = depth;
 
@@ -333,6 +466,13 @@
 
                 window.__dockSystem.register("navigator", win);
 
+                // Convert from bottom-anchored to top-anchored positioning immediately.
+                var initTop = win.offsetTop;
+                var initLeft = win.offsetLeft;
+                win.style.bottom = "auto";
+                win.style.top = initTop + "px";
+                win.style.left = initLeft + "px";
+
                 track.addEventListener("mousedown", function(e) {
                     dragging = true;
                     var currentTop = win.offsetTop;
@@ -381,6 +521,63 @@
                 });
             })();
 
+            // Draggable prefs window via grab track (uses dock system).
+            (function() {
+                const win = document.getElementById("prefs-window");
+                const track = document.getElementById("prefs-grab-track");
+                let dragging = false;
+                let offsetX = 0;
+                let offsetY = 0;
+
+                window.__dockSystem.register("prefs", win);
+
+                track.addEventListener("mousedown", function(e) {
+                    dragging = true;
+                    var currentTop = win.offsetTop;
+                    var currentLeft = win.offsetLeft;
+                    win.style.bottom = "auto";
+                    win.style.top = currentTop + "px";
+                    win.style.left = currentLeft + "px";
+                    offsetX = e.clientX - currentLeft;
+                    offsetY = e.clientY - currentTop;
+                    e.preventDefault();
+                });
+
+                document.addEventListener("mousemove", function(e) {
+                    if (!dragging) return;
+                    window.__dockSystem.onDragMove("prefs", e.clientX - offsetX, e.clientY - offsetY);
+                });
+
+                document.addEventListener("mouseup", function() {
+                    if (dragging) window.__dockSystem.onDragEnd("prefs");
+                    dragging = false;
+                });
+
+                track.addEventListener("touchstart", function(e) {
+                    dragging = true;
+                    var currentTop = win.offsetTop;
+                    var currentLeft = win.offsetLeft;
+                    win.style.bottom = "auto";
+                    win.style.top = currentTop + "px";
+                    win.style.left = currentLeft + "px";
+                    const touch = e.touches[0];
+                    offsetX = touch.clientX - currentLeft;
+                    offsetY = touch.clientY - currentTop;
+                    e.preventDefault();
+                });
+
+                document.addEventListener("touchmove", function(e) {
+                    if (!dragging) return;
+                    const touch = e.touches[0];
+                    window.__dockSystem.onDragMove("prefs", touch.clientX - offsetX, touch.clientY - offsetY);
+                });
+
+                document.addEventListener("touchend", function() {
+                    if (dragging) window.__dockSystem.onDragEnd("prefs");
+                    dragging = false;
+                });
+            })();
+
             // Window controls.
             document.getElementById("window-minimize").addEventListener("click", function() {
                 const body = document.getElementById("window-body");
@@ -390,6 +587,34 @@
             document.getElementById("window-toggle-breadcrumb").addEventListener("click", function() {
                 const bc = document.getElementById("breadcrumb");
                 bc.style.display = bc.style.display === "none" ? "block" : "none";
+            });
+
+            // Background color picker
+            const bgColorInput = document.createElement("input");
+            bgColorInput.type = "color";
+            bgColorInput.value = "#000000";
+            bgColorInput.style.display = "none";
+            document.body.appendChild(bgColorInput);
+            bgColorInput.addEventListener("input", function() {
+                document.body.style.backgroundColor = bgColorInput.value;
+            });
+
+            // Prefs window toggle
+            document.getElementById("window-settings").addEventListener("click", function() {
+                var pw = document.getElementById("prefs-window");
+                pw.style.display = pw.style.display === "none" ? "flex" : "none";
+            });
+            document.getElementById("prefs-minimize").addEventListener("click", function() {
+                var body = document.getElementById("prefs-window-body");
+                body.style.display = body.style.display === "none" ? "flex" : "none";
+            });
+            document.getElementById("pref-bgcolor").addEventListener("click", function() {
+                bgColorInput.click();
+            });
+            document.getElementById("pref-clear-cookies").addEventListener("click", function() {
+                document.cookie = "sitePrefs=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.body.style.backgroundColor = "";
+                bgColorInput.value = "#000000";
             });
 
             // Undock buttons - all buttons with class dock-undock-btn trigger undock.
@@ -403,6 +628,64 @@
             document.getElementById("dark-mode-toggle").addEventListener("click", function() {
                 document.body.classList.toggle("dark-mode");
             });
+
+            // --- Cookie persistence for background color and window positions ---
+            function setCookie(name, value, days) {
+                var expires = "";
+                if (days) {
+                    var d = new Date();
+                    d.setTime(d.getTime() + days * 86400000);
+                    expires = "; expires=" + d.toUTCString();
+                }
+                document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/; SameSite=Lax";
+            }
+            function getCookie(name) {
+                var match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+                return match ? decodeURIComponent(match[2]) : null;
+            }
+            function savePrefs() {
+                var nav = document.getElementById("nav-window");
+                var set = document.getElementById("settings-panel");
+                var prefs = {
+                    bgColor: bgColorInput.value,
+                    navLeft: nav.offsetLeft,
+                    navTop: nav.offsetTop,
+                    setLeft: set.offsetLeft,
+                    setTop: set.offsetTop
+                };
+                setCookie("sitePrefs", JSON.stringify(prefs), 365);
+            }
+            function loadPrefs() {
+                var raw = getCookie("sitePrefs");
+                if (!raw) return;
+                try {
+                    var prefs = JSON.parse(raw);
+                    if (prefs.bgColor) {
+                        document.body.style.backgroundColor = prefs.bgColor;
+                        bgColorInput.value = prefs.bgColor;
+                    }
+                    var nav = document.getElementById("nav-window");
+                    var set = document.getElementById("settings-panel");
+                    if (prefs.navLeft != null) {
+                        nav.style.left = prefs.navLeft + "px";
+                        nav.style.top = prefs.navTop + "px";
+                    }
+                    if (prefs.setLeft != null) {
+                        set.style.left = prefs.setLeft + "px";
+                        set.style.top = prefs.setTop + "px";
+                        set.style.right = "auto";
+                    }
+                } catch(e) {}
+            }
+            loadPrefs();
+
+            // Save on color change
+            bgColorInput.addEventListener("change", savePrefs);
+
+            // Save positions on drag end
+            var origDragEnd = window.__dockSystem && window.__dockSystem.onDragEnd;
+            document.addEventListener("mouseup", function() { setTimeout(savePrefs, 50); });
+            document.addEventListener("touchend", function() { setTimeout(savePrefs, 50); });
 
         </script>
     </body>
