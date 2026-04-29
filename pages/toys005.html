@@ -6,19 +6,26 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <label>
-                Levels
-                <input type="range" id="setting-levels" min="4" max="30" value="8">
-            </label>
-            <label>
-                Scale
-                <input type="range" id="setting-scale" min="20" max="200" value="120">
-            </label>
-            <label>
-                Speed
-                <input type="range" id="setting-speed" min="0" max="20" value="5">
-            </label>
-            <button id="setting-apply">Regenerate</button>
+            <fieldset>
+                <legend>About</legend>
+                <p>Procedural terrain contour map using marching squares on fractal noise. Contour lines breathe with a sinusoidal wave as the map scrolls diagonally.</p>
+            </fieldset>
+            <fieldset>
+                <legend>Controls</legend>
+                <label>
+                    Levels
+                    <input type="range" id="setting-levels" min="4" max="30" value="8">
+                </label>
+                <label>
+                    Scale
+                    <input type="range" id="setting-scale" min="20" max="200" value="120">
+                </label>
+                <label>
+                    Speed
+                    <input type="range" id="setting-speed" min="0" max="20" value="5">
+                </label>
+                <button id="setting-apply">Regenerate</button>
+            </fieldset>
         </div>
     </div>
 </div>

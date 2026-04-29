@@ -6,20 +6,27 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <label>
-                Gravity
-                <input type="range" id="setting-gravity" min="1" max="100" value="30">
-            </label>
-            <label>
-                Balls
-                <input type="number" id="setting-balls" min="1" max="50" value="12">
-            </label>
-            <label>
-                Auto-rotate
-                <input type="checkbox" id="setting-autorotate" checked>
-            </label>
-            <button id="setting-apply">Apply</button>
-            <button id="setting-bounce">Bounce</button>
+            <fieldset>
+                <legend>About</legend>
+                <p>3D ball physics with gravitational attraction toward a central sphere. Balls bounce off the surface and collide with each other in orbit.</p>
+            </fieldset>
+            <fieldset>
+                <legend>Controls</legend>
+                <label>
+                    Gravity
+                    <input type="range" id="setting-gravity" min="1" max="100" value="30">
+                </label>
+                <label>
+                    Balls
+                    <input type="number" id="setting-balls" min="1" max="50" value="12">
+                </label>
+                <label>
+                    Auto-rotate
+                    <input type="checkbox" id="setting-autorotate" checked>
+                </label>
+                <button id="setting-apply">Apply</button>
+                <button id="setting-bounce">Bounce</button>
+            </fieldset>
         </div>
     </div>
 </div>

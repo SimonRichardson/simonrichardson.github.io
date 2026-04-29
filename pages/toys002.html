@@ -6,15 +6,22 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <label>
-                Speed
-                <input type="range" id="setting-speed" min="1" max="100" value="16">
-            </label>
-            <label>
-                Ribbons
-                <input type="number" id="setting-ribbons" min="1" max="8" value="1">
-            </label>
-            <button id="setting-apply">Apply</button>
+            <fieldset>
+                <legend>About</legend>
+                <p>Smooth bezier ribbons orbit a central sphere using Catmull-Rom spline interpolation. Multiple ribbons chase their tails in 3D space.</p>
+            </fieldset>
+            <fieldset>
+                <legend>Controls</legend>
+                <label>
+                    Speed
+                    <input type="range" id="setting-speed" min="1" max="100" value="16">
+                </label>
+                <label>
+                    Ribbons
+                    <input type="number" id="setting-ribbons" min="1" max="8" value="1">
+                </label>
+                <button id="setting-apply">Apply</button>
+            </fieldset>
         </div>
     </div>
 </div>

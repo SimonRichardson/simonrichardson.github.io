@@ -6,15 +6,22 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <label>
-                Gravity
-                <input type="range" id="setting-gravity" min="0" max="100" value="20">
-            </label>
-            <label>
-                Balls
-                <input type="number" id="setting-balls" min="1" max="40" value="18">
-            </label>
-            <button id="setting-apply">Apply</button>
+            <fieldset>
+                <legend>About</legend>
+                <p>Soft-body physics simulation with gravitational attraction. Balls orbit a fixed center mass and collide with each other.</p>
+            </fieldset>
+            <fieldset>
+                <legend>Controls</legend>
+                <label>
+                    Gravity
+                    <input type="range" id="setting-gravity" min="0" max="100" value="20">
+                </label>
+                <label>
+                    Balls
+                    <input type="number" id="setting-balls" min="1" max="40" value="18">
+                </label>
+                <button id="setting-apply">Apply</button>
+            </fieldset>
         </div>
     </div>
 </div>

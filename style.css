@@ -204,6 +204,7 @@ body {
     z-index: 10000;
     display: flex;
     flex-direction: row;
+    max-width: 200px;
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
     font-family: sans-serif;
 }
@@ -274,6 +275,26 @@ body {
     padding: 8px;
     display: block;
     color: #222222;
+}
+
+#settings-body fieldset {
+    border: 1px solid #808080;
+    border-top-color: #ffffff;
+    border-left-color: #ffffff;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+}
+
+#settings-body fieldset legend {
+    font-size: 11px;
+    font-weight: bold;
+    padding: 0 4px;
+}
+
+#settings-body fieldset p {
+    font-size: 10px;
+    line-height: 1.4;
+    margin: 2px 0;
 }
 
 #settings-body label {
@@ -353,6 +374,12 @@ body {
 
 .dark-mode #settings-body {
     color: #e0e0e0;
+}
+
+.dark-mode #settings-body fieldset {
+    border-color: #555555;
+    border-top-color: #3a3a3a;
+    border-left-color: #3a3a3a;
 }
 
 .dark-mode #settings-body input[type="number"] {
