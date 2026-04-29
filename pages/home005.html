@@ -1,0 +1,370 @@
+<div id="settings-panel">
+    <div id="settings-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track"></div>
+    </div>
+    <div id="settings-chrome">
+        <div id="settings-body">
+            <label>
+                Levels
+                <input type="range" id="setting-levels" min="4" max="30" value="8">
+            </label>
+            <label>
+                Scale
+                <input type="range" id="setting-scale" min="20" max="200" value="120">
+            </label>
+            <label>
+                Speed
+                <input type="range" id="setting-speed" min="0" max="20" value="5">
+            </label>
+            <button id="setting-apply">Regenerate</button>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+    var settingsLevels = document.getElementById("setting-levels");
+    var settingsScale = document.getElementById("setting-scale");
+    var settingsSpeed = document.getElementById("setting-speed");
+
+    var settings = { levels: 8, scale: 120, speed: 5 };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var chrome = document.getElementById("settings-chrome");
+        chrome.style.display = chrome.style.display === "none" ? "block" : "none";
+    });
+
+    settingsLevels.addEventListener("input", function() {
+        settings.levels = parseInt(this.value, 10);
+    });
+
+    settingsScale.addEventListener("input", function() {
+        settings.scale = parseInt(this.value, 10);
+    });
+
+    settingsSpeed.addEventListener("input", function() {
+        settings.speed = parseInt(this.value, 10);
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        seed = Math.random() * 10000;
+        scrollOffsetX = 0;
+        scrollOffsetY = 0;
+    });
+
+    // Settings panel drag (uses dock system).
+    (function() {
+        var track = document.getElementById("settings-grab-track");
+        var dragging = false, offsetX = 0, offsetY = 0;
+
+        track.addEventListener("mousedown", function(e) {
+            dragging = true;
+            offsetX = e.clientX - settingsPanel.offsetLeft;
+            offsetY = e.clientY - settingsPanel.offsetTop;
+            settingsPanel.style.top = settingsPanel.offsetTop + "px";
+            settingsPanel.style.right = "auto";
+            settingsPanel.style.left = settingsPanel.offsetLeft + "px";
+            if (window.__dockSystem) window.__dockSystem.onDragStart("settings");
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            settingsPanel.style.right = "auto";
+            if (window.__dockSystem) {
+                window.__dockSystem.onDragMove("settings", e.clientX - offsetX, e.clientY - offsetY);
+            } else {
+                settingsPanel.style.left = (e.clientX - offsetX) + "px";
+                settingsPanel.style.top = (e.clientY - offsetY) + "px";
+            }
+        });
+
+        document.addEventListener("mouseup", function() {
+            if (dragging && window.__dockSystem) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+
+        track.addEventListener("touchstart", function(e) {
+            dragging = true;
+            var touch = e.touches[0];
+            offsetX = touch.clientX - settingsPanel.offsetLeft;
+            offsetY = touch.clientY - settingsPanel.offsetTop;
+            settingsPanel.style.top = settingsPanel.offsetTop + "px";
+            settingsPanel.style.right = "auto";
+            settingsPanel.style.left = settingsPanel.offsetLeft + "px";
+            if (window.__dockSystem) window.__dockSystem.onDragStart("settings");
+            e.preventDefault();
+        });
+
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var touch = e.touches[0];
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", touch.clientX - offsetX, touch.clientY - offsetY);
+        });
+
+        document.addEventListener("touchend", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+    })();
+
+    if (window.__dockSystem) {
+        window.__dockSystem.register("settings", settingsPanel);
+    }
+
+    // --- Canvas setup ---
+    var canvas = document.getElementById("home-canvas");
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+
+    // --- Perlin noise implementation ---
+    var seed = Math.random() * 10000;
+
+    function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    function lerp(a, b, t) { return a + t * (b - a); }
+
+    function grad(hash, x, y) {
+        var h = hash & 3;
+        var u = h < 2 ? x : y;
+        var v = h < 2 ? y : x;
+        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+    }
+
+    // Simple hash function.
+    function hash(x, y) {
+        var n = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453;
+        return ((n - Math.floor(n)) * 256) | 0;
+    }
+
+    function noise(x, y) {
+        var xi = Math.floor(x);
+        var yi = Math.floor(y);
+        var xf = x - xi;
+        var yf = y - yi;
+
+        var u = fade(xf);
+        var v = fade(yf);
+
+        var aa = hash(xi, yi);
+        var ab = hash(xi, yi + 1);
+        var ba = hash(xi + 1, yi);
+        var bb = hash(xi + 1, yi + 1);
+
+        var x1 = lerp(grad(aa, xf, yf), grad(ba, xf - 1, yf), u);
+        var x2 = lerp(grad(ab, xf, yf - 1), grad(bb, xf - 1, yf - 1), u);
+
+        return lerp(x1, x2, v);
+    }
+
+    // Fractal Brownian motion for more natural terrain.
+    function fbm(x, y) {
+        var value = 0;
+        var amplitude = 1;
+        var frequency = 1;
+        var total = 0;
+        for (var i = 0; i < 7; i++) {
+            value += noise(x * frequency, y * frequency) * amplitude;
+            total += amplitude;
+            amplitude *= 0.5;
+            frequency *= 2.1;
+        }
+        return value / total;
+    }
+
+    // Ridged noise for more interesting features.
+    function ridged(x, y) {
+        var value = 0;
+        var amplitude = 1;
+        var frequency = 1;
+        var total = 0;
+        for (var i = 0; i < 5; i++) {
+            var n = Math.abs(noise(x * frequency, y * frequency));
+            value += (1.0 - n) * amplitude;
+            total += amplitude;
+            amplitude *= 0.5;
+            frequency *= 2.0;
+        }
+        return value / total;
+    }
+
+    function terrain(x, y) {
+        // Blend fbm and ridged noise for realistic topography.
+        var f = fbm(x, y);
+        var r = ridged(x + 5.3, y + 2.7);
+        return f * 0.6 + r * 0.4;
+    }
+
+    // --- Marching squares contour extraction ---
+    var scrollOffsetX = 0;
+    var scrollOffsetY = 0;
+
+    function generate() {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        var scale = settings.scale;
+        var levels = settings.levels;
+        var cellSize = 6;
+        var cx = canvas.width / 2;
+        var cy = canvas.height / 2;
+        var waveFreq = 0.008;
+
+        // Snap to cell boundaries for stable contour lines.
+        var cellOffsetX = Math.floor(scrollOffsetX / cellSize) * cellSize;
+        var cellOffsetY = Math.floor(scrollOffsetY / cellSize) * cellSize;
+        // Sub-cell remainder for smooth pixel translation.
+        var subX = scrollOffsetX - cellOffsetX;
+        var subY = scrollOffsetY - cellOffsetY;
+
+        // Extra cells to cover the translated area.
+        var cols = Math.ceil(canvas.width / cellSize) + 3;
+        var rows = Math.ceil(canvas.height / cellSize) + 3;
+
+        // Build height grid.
+        var grid = new Array(rows);
+        for (var r = 0; r < rows; r++) {
+            grid[r] = new Array(cols);
+            for (var c = 0; c < cols; c++) {
+                var nx = (c * cellSize + cellOffsetX) / scale;
+                var ny = (r * cellSize + cellOffsetY) / scale;
+                grid[r][c] = terrain(nx, ny);
+            }
+        }
+
+        // Find min/max for normalization.
+        var min = Infinity, max = -Infinity;
+        for (var r = 0; r < rows; r++) {
+            for (var c = 0; c < cols; c++) {
+                if (grid[r][c] < min) min = grid[r][c];
+                if (grid[r][c] > max) max = grid[r][c];
+            }
+        }
+
+        // Normalize grid to 0-1.
+        var range = max - min || 1;
+        for (var r = 0; r < rows; r++) {
+            for (var c = 0; c < cols; c++) {
+                grid[r][c] = (grid[r][c] - min) / range;
+            }
+        }
+
+        // Draw contour lines using marching squares.
+        // Apply sub-cell translation for smooth scrolling without jitter.
+        ctx.save();
+        ctx.translate(-subX, -subY);
+
+        // Every 5th line is an index contour (solid, thicker).
+        // Others are intermediate contours (dashed, thinner).
+        var indexInterval = 5;
+
+        for (var l = 1; l < levels; l++) {
+            var threshold = l / levels;
+            var isIndex = (l % indexInterval === 0);
+
+            if (isIndex) {
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([]);
+            } else {
+                ctx.strokeStyle = "rgba(255,255,255,0.6)";
+                ctx.lineWidth = 0.7;
+                ctx.setLineDash([4, 4]);
+            }
+
+            ctx.beginPath();
+
+            for (var r = 0; r < rows - 1; r++) {
+                for (var c = 0; c < cols - 1; c++) {
+                    // Wave modulates the threshold per cell position.
+                    var px = c * cellSize;
+                    var py = r * cellSize;
+                    var wave = Math.sin((px - cx) * waveFreq + time * 2) * Math.sin((py - cy) * waveFreq * 0.5 + time) * 0.08;
+                    wave += noise(px * 0.01 + time, py * 0.01) * 0.03;
+                    var localThreshold = threshold + wave;
+
+                    var tl = grid[r][c];
+                    var tr = grid[r][c + 1];
+                    var br = grid[r + 1][c + 1];
+                    var bl = grid[r + 1][c];
+
+                    // Marching squares case.
+                    var caseIndex = 0;
+                    if (tl >= localThreshold) caseIndex |= 8;
+                    if (tr >= localThreshold) caseIndex |= 4;
+                    if (br >= localThreshold) caseIndex |= 2;
+                    if (bl >= localThreshold) caseIndex |= 1;
+
+                    if (caseIndex === 0 || caseIndex === 15) continue;
+
+                    var x = c * cellSize;
+                    var y = r * cellSize;
+
+                    // Interpolation along edges.
+                    var top = x + cellSize * interp(tl, tr, localThreshold);
+                    var bottom = x + cellSize * interp(bl, br, localThreshold);
+                    var left = y + cellSize * interp(tl, bl, localThreshold);
+                    var right = y + cellSize * interp(tr, br, localThreshold);
+
+                    switch (caseIndex) {
+                        case 1:  case 14: line(x, left, bottom, y + cellSize); break;
+                        case 2:  case 13: line(bottom, y + cellSize, x + cellSize, right); break;
+                        case 3:  case 12: line(x, left, x + cellSize, right); break;
+                        case 4:  case 11: line(top, y, x + cellSize, right); break;
+                        case 5:
+                            line(x, left, top, y);
+                            line(bottom, y + cellSize, x + cellSize, right);
+                            break;
+                        case 6:  case 9: line(top, y, bottom, y + cellSize); break;
+                        case 7:  case 8: line(x, left, top, y); break;
+                        case 10:
+                            line(top, y, x + cellSize, right);
+                            line(x, left, bottom, y + cellSize);
+                            break;
+                    }
+                }
+            }
+
+            ctx.stroke();
+        }
+
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        function interp(a, b, t) {
+            if (Math.abs(b - a) < 0.0001) return 0.5;
+            return (t - a) / (b - a);
+        }
+
+        function line(x1, y1, x2, y2) {
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+        }
+    }
+
+    resize();
+
+    var time = 0;
+
+    function loop() {
+        var speed = settings.speed * 0.1;
+        scrollOffsetX -= speed;
+        scrollOffsetY += speed;
+        time += 0.015;
+
+        generate();
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+    loop();
+})();
+</script>
