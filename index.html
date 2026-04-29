@@ -15,6 +15,7 @@
             <span class="bar-links">
                 <a href="https://github.com/SimonRichardson">github</a>
                 <a href="https://hachyderm.io/@simonrichardson">mastodon</a>
+                <a href="#cookies" class="nav-link" data-page="pages/cookies.html">cookies</a>
                 <button id="dark-mode-toggle" title="Toggle dark mode">&#128161;</button>
             </span>
         </footer>
@@ -484,8 +485,16 @@
                 }
             });
 
+            // Footer nav-link click handler.
+            document.querySelectorAll("#bottom-bar a[data-page]").forEach(function(link) {
+                link.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    loadPage(link.getAttribute("data-page"));
+                });
+            });
+
             // --- Cookie persistence for background color, window positions, and page settings ---
-            var currentBgColor = "#000000";
+            var currentBgColor = "#1d1d1d";
             function setCookie(name, value, days) {
                 var expires = "";
                 if (days) {
