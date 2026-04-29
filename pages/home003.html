@@ -1,0 +1,359 @@
+<div id="settings-panel">
+    <div id="settings-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track"></div>
+    </div>
+    <div id="settings-chrome">
+        <div id="settings-body">
+            <label>
+                Gravity
+                <input type="range" id="setting-gravity" min="1" max="100" value="30">
+            </label>
+            <label>
+                Balls
+                <input type="number" id="setting-balls" min="1" max="50" value="12">
+            </label>
+            <label>
+                Auto-rotate
+                <input type="checkbox" id="setting-autorotate" checked>
+            </label>
+            <button id="setting-apply">Apply</button>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+    var settingsGravity = document.getElementById("setting-gravity");
+    var settingsBalls = document.getElementById("setting-balls");
+
+    var settings = { gravity: 0.15, numBalls: 12, autoRotate: true };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    settingsGravity.addEventListener("input", function() {
+        settings.gravity = parseFloat(this.value) / 200;
+    });
+
+    document.getElementById("setting-autorotate").addEventListener("change", function() {
+        settings.autoRotate = this.checked;
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.numBalls = parseInt(settingsBalls.value, 10) || 12;
+        initBalls();
+    });
+
+    // Settings panel drag (uses dock system).
+    (function() {
+        var track = document.getElementById("settings-grab-track");
+        var dragging = false, offsetX = 0, offsetY = 0;
+
+        window.__dockSystem.register("settings", settingsPanel);
+
+        track.addEventListener("mousedown", function(e) {
+            dragging = true;
+            offsetX = e.clientX - settingsPanel.offsetLeft;
+            offsetY = e.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", e.clientX - offsetX, e.clientY - offsetY);
+        });
+
+        document.addEventListener("mouseup", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+
+        track.addEventListener("touchstart", function(e) {
+            dragging = true;
+            var touch = e.touches[0];
+            offsetX = touch.clientX - settingsPanel.offsetLeft;
+            offsetY = touch.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var touch = e.touches[0];
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", touch.clientX - offsetX, touch.clientY - offsetY);
+        });
+
+        document.addEventListener("touchend", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+    })();
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- 3D parameters ---
+    var PERSPECTIVE = 800;
+    var sphereRadius3D = 120;
+    var centerX = 0, centerY = 0, centerZ = 0;
+
+    function updateSphere() {
+        sphereRadius3D = Math.min(canvas.width, canvas.height) / 5;
+    }
+    updateSphere();
+
+    function project(x, y, z) {
+        var scale = PERSPECTIVE / (PERSPECTIVE + z);
+        return {
+            sx: canvas.width / 2 + x * scale,
+            sy: canvas.height / 2 + y * scale,
+            scale: scale
+        };
+    }
+
+    // --- Ball class (3D) ---
+    function Ball(radius) {
+        this.radius = radius;
+        // Spawn at random position in a shell around the sphere.
+        var dist = sphereRadius3D * 2.5 + Math.random() * sphereRadius3D;
+        var theta = Math.random() * Math.PI * 2;
+        var phi = Math.acos(2 * Math.random() - 1);
+        this.x = Math.sin(phi) * Math.cos(theta) * dist;
+        this.y = Math.sin(phi) * Math.sin(theta) * dist;
+        this.z = Math.cos(phi) * dist;
+        // Random initial velocity (tangential-ish).
+        var speed = 1 + Math.random() * 2;
+        this.vx = (Math.random() - 0.5) * speed;
+        this.vy = (Math.random() - 0.5) * speed;
+        this.vz = (Math.random() - 0.5) * speed;
+    }
+
+    var balls = [];
+
+    function initBalls() {
+        balls = [];
+        for (var i = 0; i < settings.numBalls; i++) {
+            balls.push(new Ball(15 + Math.random() * 20));
+        }
+    }
+    initBalls();
+
+    // --- Rotation via mouse/touch drag ---
+    var rotY = 0, rotX = 0;
+    var dragging = false, lastMX = 0, lastMY = 0;
+
+    canvas.addEventListener("mousedown", function(e) {
+        dragging = true;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (!dragging) return;
+        var dx = e.clientX - lastMX;
+        var dy = e.clientY - lastMY;
+        rotY += dx * 0.005;
+        rotX += dy * 0.005;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+
+    document.addEventListener("mouseup", function() {
+        dragging = false;
+    });
+
+    canvas.addEventListener("touchstart", function(e) {
+        dragging = true;
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+
+    document.addEventListener("touchmove", function(e) {
+        if (!dragging) return;
+        var dx = e.touches[0].clientX - lastMX;
+        var dy = e.touches[0].clientY - lastMY;
+        rotY += dx * 0.005;
+        rotX += dy * 0.005;
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+
+    document.addEventListener("touchend", function() {
+        dragging = false;
+    });
+
+    // Rotate a 3D point around Y then X axis.
+    function applyRotation(x, y, z) {
+        // Rotate around Y.
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        // Rotate around X.
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
+    }
+
+    // --- Physics ---
+    var DAMPING = 0.995;
+    var BOUNCE = 0.9;
+
+    function updatePhysics() {
+        var gravity = settings.gravity;
+
+        for (var i = 0; i < balls.length; i++) {
+            var b = balls[i];
+
+            // Gravity toward center sphere.
+            var dx = centerX - b.x;
+            var dy = centerY - b.y;
+            var dz = centerZ - b.z;
+            var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist > 0.001) {
+                b.vx += (dx / dist) * gravity;
+                b.vy += (dy / dist) * gravity;
+                b.vz += (dz / dist) * gravity;
+            }
+
+            // Apply velocity.
+            b.vx *= DAMPING;
+            b.vy *= DAMPING;
+            b.vz *= DAMPING;
+            b.x += b.vx;
+            b.y += b.vy;
+            b.z += b.vz;
+
+            // Collision with center sphere.
+            var minDist = sphereRadius3D + b.radius;
+            dist = Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z);
+            if (dist < minDist && dist > 0.001) {
+                // Push out.
+                var nx = b.x / dist;
+                var ny = b.y / dist;
+                var nz = b.z / dist;
+                b.x = nx * minDist;
+                b.y = ny * minDist;
+                b.z = nz * minDist;
+
+                // Reflect velocity along normal.
+                var dot = b.vx * nx + b.vy * ny + b.vz * nz;
+                b.vx = (b.vx - 2 * dot * nx) * BOUNCE;
+                b.vy = (b.vy - 2 * dot * ny) * BOUNCE;
+                b.vz = (b.vz - 2 * dot * nz) * BOUNCE;
+            }
+
+            // Ball-ball collisions.
+            for (var j = i + 1; j < balls.length; j++) {
+                var b2 = balls[j];
+                var bDx = b2.x - b.x;
+                var bDy = b2.y - b.y;
+                var bDz = b2.z - b.z;
+                var bDist = Math.sqrt(bDx * bDx + bDy * bDy + bDz * bDz);
+                var bMin = b.radius + b2.radius;
+                if (bDist < bMin && bDist > 0.001) {
+                    var bnx = bDx / bDist;
+                    var bny = bDy / bDist;
+                    var bnz = bDz / bDist;
+
+                    // Separate.
+                    var overlap = (bMin - bDist) * 0.5;
+                    b.x -= bnx * overlap;
+                    b.y -= bny * overlap;
+                    b.z -= bnz * overlap;
+                    b2.x += bnx * overlap;
+                    b2.y += bny * overlap;
+                    b2.z += bnz * overlap;
+
+                    // Elastic collision along normal.
+                    var relVx = b.vx - b2.vx;
+                    var relVy = b.vy - b2.vy;
+                    var relVz = b.vz - b2.vz;
+                    var relDot = relVx * bnx + relVy * bny + relVz * bnz;
+                    if (relDot > 0) {
+                        b.vx -= relDot * bnx * BOUNCE;
+                        b.vy -= relDot * bny * BOUNCE;
+                        b.vz -= relDot * bnz * BOUNCE;
+                        b2.vx += relDot * bnx * BOUNCE;
+                        b2.vy += relDot * bny * BOUNCE;
+                        b2.vz += relDot * bnz * BOUNCE;
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Rendering (with rotation applied for view) ---
+    function drawSphere() {
+        var proj = project(0, 0, 0);
+        var edgeProj = project(sphereRadius3D, 0, 0);
+        var screenRadius = (edgeProj.sx - proj.sx);
+
+        ctx.beginPath();
+        ctx.arc(proj.sx, proj.sy, Math.abs(screenRadius), 0, Math.PI * 2);
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+    }
+
+    function drawBall(b, rotated) {
+        var proj = project(rotated.x, rotated.y, rotated.z);
+        var screenRadius = b.radius * proj.scale;
+
+        ctx.beginPath();
+        ctx.arc(proj.sx, proj.sy, screenRadius, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+    }
+
+    // --- Animation loop ---
+    function loop() {
+        updateSphere();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Auto-rotate when enabled and not being dragged.
+        if (settings.autoRotate && !dragging) {
+            rotY += 0.003;
+        }
+
+        updatePhysics();
+
+        // Compute rotated positions for rendering.
+        var drawList = [];
+        drawList.push({ z: 0, type: "sphere" });
+        for (var i = 0; i < balls.length; i++) {
+            var r = applyRotation(balls[i].x, balls[i].y, balls[i].z);
+            drawList.push({ z: r.z, type: "ball", ball: balls[i], rotated: r });
+        }
+        // Sort back to front (painter's algorithm).
+        drawList.sort(function(a, b) { return b.z - a.z; });
+
+        for (var i = 0; i < drawList.length; i++) {
+            var item = drawList[i];
+            if (item.type === "sphere") {
+                drawSphere();
+            } else {
+                drawBall(item.ball, item.rotated);
+            }
+        }
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    loop();
+})();
+</script>
