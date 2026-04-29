@@ -6,12 +6,12 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <fieldset>
-                <legend>About</legend>
+            <div class="settings-fieldset">
+                <div class="settings-legend">About</div>
                 <p>A flat 3D arena with bouncing balls constrained within rope boundaries. Balls collide elastically and bounce off the plane surface.</p>
-            </fieldset>
-            <fieldset>
-                <legend>Controls</legend>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
                 <label>
                     Balls
                     <input type="number" id="setting-balls" min="1" max="50" value="15">
@@ -22,7 +22,7 @@
                 </label>
                 <button id="setting-apply">Apply</button>
                 <button id="setting-bounce">Bounce</button>
-            </fieldset>
+            </div>
         </div>
     </div>
 </div>
@@ -39,6 +39,14 @@
         var body = document.getElementById("settings-body");
         body.style.display = body.style.display === "none" ? "block" : "none";
     });
+
+    // Toggle fieldset content on legend click.
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+        });
+    }
 
     document.getElementById("setting-autorotate").addEventListener("change", function() {
         settings.autoRotate = this.checked;

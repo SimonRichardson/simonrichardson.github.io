@@ -204,7 +204,7 @@ body {
     z-index: 10000;
     display: flex;
     flex-direction: row;
-    max-width: 200px;
+    width: 200px;
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
     font-family: sans-serif;
 }
@@ -262,6 +262,7 @@ body {
 }
 
 #settings-chrome {
+    flex: 1;
     display: flex;
     flex-direction: column;
     border-top: 2px solid #ffffff;
@@ -277,24 +278,41 @@ body {
     color: #222222;
 }
 
-#settings-body fieldset {
+#settings-body .settings-fieldset {
     border: 1px solid #808080;
     border-top-color: #ffffff;
     border-left-color: #ffffff;
     padding: 6px 8px;
     margin-bottom: 6px;
+    position: relative;
+    padding-top: 14px;
 }
 
-#settings-body fieldset legend {
+#settings-body .settings-legend {
+    position: absolute;
+    top: -7px;
+    left: 6px;
     font-size: 11px;
     font-weight: bold;
     padding: 0 4px;
+    background-color: #c0c0c0;
+    cursor: pointer;
+    user-select: none;
 }
 
-#settings-body fieldset p {
+#settings-body .settings-fieldset p {
     font-size: 10px;
     line-height: 1.4;
     margin: 2px 0;
+}
+
+#settings-body .settings-fieldset.collapsed {
+    padding-top: 14px;
+    padding-bottom: 4px;
+}
+
+#settings-body .settings-fieldset.collapsed > *:not(.settings-legend) {
+    display: none;
 }
 
 #settings-body label {
@@ -376,10 +394,14 @@ body {
     color: #e0e0e0;
 }
 
-.dark-mode #settings-body fieldset {
+.dark-mode #settings-body .settings-fieldset {
     border-color: #555555;
     border-top-color: #3a3a3a;
     border-left-color: #3a3a3a;
+}
+
+.dark-mode #settings-body .settings-legend {
+    background-color: #2d2d2d;
 }
 
 .dark-mode #settings-body input[type="number"] {

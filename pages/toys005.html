@@ -6,12 +6,12 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <fieldset>
-                <legend>About</legend>
+            <div class="settings-fieldset">
+                <div class="settings-legend">About</div>
                 <p>Procedural terrain contour map using marching squares on fractal noise. Contour lines breathe with a sinusoidal wave as the map scrolls diagonally.</p>
-            </fieldset>
-            <fieldset>
-                <legend>Controls</legend>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
                 <label>
                     Levels
                     <input type="range" id="setting-levels" min="4" max="30" value="8">
@@ -25,7 +25,7 @@
                     <input type="range" id="setting-speed" min="0" max="20" value="5">
                 </label>
                 <button id="setting-apply">Regenerate</button>
-            </fieldset>
+            </div>
         </div>
     </div>
 </div>
@@ -44,6 +44,14 @@
         var chrome = document.getElementById("settings-chrome");
         chrome.style.display = chrome.style.display === "none" ? "block" : "none";
     });
+
+    // Toggle fieldset content on legend click.
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+        });
+    }
 
     settingsLevels.addEventListener("input", function() {
         settings.levels = parseInt(this.value, 10);

@@ -6,12 +6,12 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <fieldset>
-                <legend>About</legend>
+            <div class="settings-fieldset">
+                <div class="settings-legend">About</div>
                 <p>Smooth bezier ribbons orbit a central sphere using Catmull-Rom spline interpolation. Multiple ribbons chase their tails in 3D space.</p>
-            </fieldset>
-            <fieldset>
-                <legend>Controls</legend>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
                 <label>
                     Speed
                     <input type="range" id="setting-speed" min="1" max="100" value="16">
@@ -21,7 +21,7 @@
                     <input type="number" id="setting-ribbons" min="1" max="8" value="1">
                 </label>
                 <button id="setting-apply">Apply</button>
-            </fieldset>
+            </div>
         </div>
     </div>
 </div>
@@ -39,6 +39,14 @@
         var body = document.getElementById("settings-body");
         body.style.display = body.style.display === "none" ? "block" : "none";
     });
+
+    // Toggle fieldset content on legend click.
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+        });
+    }
 
     settingsSpeed.addEventListener("input", function() {
         settings.speed = parseFloat(this.value) / 2000;

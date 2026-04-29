@@ -6,12 +6,12 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <fieldset>
-                <legend>About</legend>
+            <div class="settings-fieldset">
+                <div class="settings-legend">About</div>
                 <p>Soft-body physics simulation with gravitational attraction. Balls orbit a fixed center mass and collide with each other.</p>
-            </fieldset>
-            <fieldset>
-                <legend>Controls</legend>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
                 <label>
                     Gravity
                     <input type="range" id="setting-gravity" min="0" max="100" value="20">
@@ -21,7 +21,7 @@
                     <input type="number" id="setting-balls" min="1" max="40" value="18">
                 </label>
                 <button id="setting-apply">Apply</button>
-            </fieldset>
+            </div>
         </div>
     </div>
 </div>
@@ -39,6 +39,14 @@
         var body = document.getElementById("settings-body");
         body.style.display = body.style.display === "none" ? "block" : "none";
     });
+
+    // Toggle fieldset content on legend click.
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+        });
+    }
 
     settingsGravity.addEventListener("input", function() {
         settings.gravity = parseFloat(this.value) / 200;
