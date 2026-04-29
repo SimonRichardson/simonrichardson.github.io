@@ -226,43 +226,128 @@
                 resize();
                 window.addEventListener("resize", resize);
 
-                var NUM_VERTICES = 24;
-                var circles = [];
-                var numCircles = 20;
+                function Ball(r, px, py, vAngle, vLen) {
+                    this.radius = r;
+                    this.x = px;
+                    this.y = py;
+                    this.vx = Math.cos(vAngle) * vLen;
+                    this.vy = Math.sin(vAngle) * vLen;
+                    this.maxVec = 15;
+                    this.numSegment = Math.floor(r / 3 + 2);
+                    this.boundOffset = [];
+                    this.boundOffsetBuff = [];
+                    this.sidePoints = [];
 
-                function createCircle(x, y, r) {
-                    var verts = [];
-                    for (var k = 0; k < NUM_VERTICES; k++) {
-                        var angle = (k / NUM_VERTICES) * Math.PI * 2;
-                        verts.push({
-                            ox: Math.cos(angle) * r,
-                            oy: Math.sin(angle) * r,
-                            x: Math.cos(angle) * r,
-                            y: Math.sin(angle) * r,
-                            vx: 0,
-                            vy: 0
-                        });
+                    for (var i = 0; i < this.numSegment; i++) {
+                        this.boundOffset.push(this.radius);
+                        this.boundOffsetBuff.push(this.radius);
+                        var angle = (2 * Math.PI / this.numSegment) * i;
+                        this.sidePoints.push({ x: Math.cos(angle), y: Math.sin(angle) });
                     }
+                }
+
+                Ball.prototype.iterate = function() {
+                    this.checkBorders();
+                    var vecLen = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                    if (vecLen > this.maxVec) {
+                        this.vx = (this.vx / vecLen) * this.maxVec;
+                        this.vy = (this.vy / vecLen) * this.maxVec;
+                    }
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.updateShape();
+                };
+
+                Ball.prototype.checkBorders = function() {
+                    var w = canvas.width;
+                    var h = canvas.height;
+                    if (this.x < -this.radius) this.x = w + this.radius;
+                    if (this.x > w + this.radius) this.x = -this.radius;
+                    if (this.y < -this.radius) this.y = h + this.radius;
+                    if (this.y > h + this.radius) this.y = -this.radius;
+                };
+
+                Ball.prototype.updateShape = function() {
+                    for (var i = 0; i < this.numSegment; i++) {
+                        if (this.boundOffset[i] < this.radius / 4)
+                            this.boundOffset[i] = this.radius / 4;
+                        var next = (i + 1) % this.numSegment;
+                        var prev = (i > 0) ? i - 1 : this.numSegment - 1;
+                        var offset = this.boundOffset[i];
+                        offset += (this.radius - offset) / 15;
+                        offset += ((this.boundOffset[next] + this.boundOffset[prev]) / 2 - offset) / 3;
+                        this.boundOffsetBuff[i] = this.boundOffset[i] = offset;
+                    }
+                };
+
+                Ball.prototype.react = function(b) {
+                    var dx = this.x - b.x;
+                    var dy = this.y - b.y;
+                    var dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < this.radius + b.radius && dist !== 0) {
+                        var overlap = this.radius + b.radius - dist;
+                        var nx = dx / dist;
+                        var ny = dy / dist;
+                        var force = overlap * 0.015;
+                        this.vx += nx * force;
+                        this.vy += ny * force;
+                        b.vx -= nx * force;
+                        b.vy -= ny * force;
+
+                        this.calcBounds(b);
+                        b.calcBounds(this);
+                        this.updateBounds();
+                        b.updateBounds();
+                    }
+                };
+
+                Ball.prototype.getBoundOffset = function(px, py) {
+                    var dx = this.x - px;
+                    var dy = this.y - py;
+                    var angle = Math.atan2(dy, dx) + Math.PI;
+                    var idx = Math.floor((angle / (2 * Math.PI)) * this.boundOffset.length) % this.boundOffset.length;
+                    if (idx < 0) idx += this.boundOffset.length;
+                    return this.boundOffset[idx];
+                };
+
+                Ball.prototype.calcBounds = function(b) {
+                    for (var i = 0; i < this.numSegment; i++) {
+                        var tp = this.getSidePoint(i);
+                        var bLen = b.getBoundOffset(tp.x, tp.y);
+                        var dx = tp.x - b.x;
+                        var dy = tp.y - b.y;
+                        var td = Math.sqrt(dx * dx + dy * dy);
+                        if (td < bLen) {
+                            this.boundOffsetBuff[i] -= (bLen - td) / 2;
+                        }
+                    }
+                };
+
+                Ball.prototype.getSidePoint = function(index) {
                     return {
-                        x: x,
-                        y: y,
-                        r: r,
-                        mass: r * r * r,
-                        vx: (Math.random() - 0.5) * 4,
-                        vy: (Math.random() - 0.5) * 4,
-                        verts: verts
+                        x: this.x + this.sidePoints[index].x * this.boundOffset[index],
+                        y: this.y + this.sidePoints[index].y * this.boundOffset[index]
                     };
+                };
+
+                Ball.prototype.updateBounds = function() {
+                    for (var i = 0; i < this.numSegment; i++)
+                        this.boundOffset[i] = this.boundOffsetBuff[i];
+                };
+
+                // --- Create balls ---
+                var balls = [];
+                var numBalls = 18;
+                for (var i = 0; i < numBalls; i++) {
+                    var radius = Math.random() * 60 + 60;
+                    var px = Math.random() * canvas.width;
+                    var py = Math.random() * canvas.height;
+                    var vAngle = Math.random() * Math.PI * 2;
+                    var vLen = Math.random() * 10;
+                    balls.push(new Ball(radius, px, py, vAngle, vLen));
                 }
 
-                for (var i = 0; i < numCircles; i++) {
-                    var r = 60 + Math.random() * 40;
-                    circles.push(createCircle(
-                        Math.random() * canvas.width,
-                        Math.random() * canvas.height,
-                        r
-                    ));
-                }
-
+                // --- Drag support ---
                 var dragged = null;
                 var dragOffX = 0;
                 var dragOffY = 0;
@@ -271,16 +356,16 @@
                     var rect = canvas.getBoundingClientRect();
                     var mx = e.clientX - rect.left;
                     var my = e.clientY - rect.top;
-                    for (var i = circles.length - 1; i >= 0; i--) {
-                        var c = circles[i];
-                        var dx = mx - c.x;
-                        var dy = my - c.y;
-                        if (dx * dx + dy * dy <= c.r * c.r) {
-                            dragged = c;
+                    for (var i = balls.length - 1; i >= 0; i--) {
+                        var b = balls[i];
+                        var dx = mx - b.x;
+                        var dy = my - b.y;
+                        if (dx * dx + dy * dy <= b.radius * b.radius) {
+                            dragged = b;
                             dragOffX = dx;
                             dragOffY = dy;
-                            c.vx = 0;
-                            c.vy = 0;
+                            b.vx = 0;
+                            b.vy = 0;
                             break;
                         }
                     }
@@ -293,25 +378,23 @@
                     dragged.y = e.clientY - rect.top - dragOffY;
                 });
 
-                canvas.addEventListener("mouseup", function() {
-                    dragged = null;
-                });
+                canvas.addEventListener("mouseup", function() { dragged = null; });
 
                 canvas.addEventListener("touchstart", function(e) {
                     var rect = canvas.getBoundingClientRect();
                     var t = e.touches[0];
                     var mx = t.clientX - rect.left;
                     var my = t.clientY - rect.top;
-                    for (var i = circles.length - 1; i >= 0; i--) {
-                        var c = circles[i];
-                        var dx = mx - c.x;
-                        var dy = my - c.y;
-                        if (dx * dx + dy * dy <= c.r * c.r) {
-                            dragged = c;
+                    for (var i = balls.length - 1; i >= 0; i--) {
+                        var b = balls[i];
+                        var dx = mx - b.x;
+                        var dy = my - b.y;
+                        if (dx * dx + dy * dy <= b.radius * b.radius) {
+                            dragged = b;
                             dragOffX = dx;
                             dragOffY = dy;
-                            c.vx = 0;
-                            c.vy = 0;
+                            b.vx = 0;
+                            b.vy = 0;
                             e.preventDefault();
                             break;
                         }
@@ -327,167 +410,58 @@
                     e.preventDefault();
                 });
 
-                canvas.addEventListener("touchend", function() {
-                    dragged = null;
-                });
+                canvas.addEventListener("touchend", function() { dragged = null; });
 
-                function update() {
-                    var w = canvas.width;
-                    var h = canvas.height;
-
-                    // Move circles.
-                    for (var i = 0; i < circles.length; i++) {
-                        var a = circles[i];
-                        if (a === dragged) continue;
-
-                        a.x += a.vx;
-                        a.y += a.vy;
-
-                        // Wrap around edges.
-                        if (a.x < -a.r) a.x = w + a.r;
-                        else if (a.x > w + a.r) a.x = -a.r;
-                        if (a.y < -a.r) a.y = h + a.r;
-                        else if (a.y > h + a.r) a.y = -a.r;
+                // --- Smooth closed path (Catmull-Rom to cubic Bezier) ---
+                function drawSmoothBall(ball) {
+                    var pts = [];
+                    for (var i = 0; i < ball.numSegment; i++) {
+                        pts.push(ball.getSidePoint(i));
                     }
+                    var n = pts.length;
+                    if (n < 3) return;
 
-                    // Collision detection — push vertices inward at impact.
-                    for (var i = 0; i < circles.length; i++) {
-                        for (var j = i + 1; j < circles.length; j++) {
-                            var a = circles[i];
-                            var b = circles[j];
-                            var dx = b.x - a.x;
-                            var dy = b.y - a.y;
-                            var dist = Math.sqrt(dx * dx + dy * dy);
-                            var minDist = a.r + b.r;
+                    ctx.beginPath();
+                    for (var i = 0; i < n; i++) {
+                        var p0 = pts[(i - 1 + n) % n];
+                        var p1 = pts[i];
+                        var p2 = pts[(i + 1) % n];
+                        var p3 = pts[(i + 2) % n];
 
-                            if (dist < minDist && dist > 0) {
-                                var nx = dx / dist;
-                                var ny = dy / dist;
-                                var overlap = minDist - dist;
-                                var totalMass = a.mass + b.mass;
+                        var cp1x = p1.x + (p2.x - p0.x) / 6;
+                        var cp1y = p1.y + (p2.y - p0.y) / 6;
+                        var cp2x = p2.x - (p3.x - p1.x) / 6;
+                        var cp2y = p2.y - (p3.y - p1.y) / 6;
 
-                                // Separate bodies.
-                                a.x -= nx * overlap * (b.mass / totalMass);
-                                a.y -= ny * overlap * (b.mass / totalMass);
-                                b.x += nx * overlap * (a.mass / totalMass);
-                                b.y += ny * overlap * (a.mass / totalMass);
-
-                                // Elastic collision impulse.
-                                if (a !== dragged && b !== dragged) {
-                                    var dvx = a.vx - b.vx;
-                                    var dvy = a.vy - b.vy;
-                                    var dvDotN = dvx * nx + dvy * ny;
-                                    if (dvDotN > 0) {
-                                        var impulse = (2 * dvDotN) / totalMass;
-                                        a.vx -= impulse * b.mass * nx;
-                                        a.vy -= impulse * b.mass * ny;
-                                        b.vx += impulse * a.mass * nx;
-                                        b.vy += impulse * a.mass * ny;
-                                    }
-                                }
-
-                                // Deform vertices near impact — push them concave.
-                                var impactStrength = Math.min(overlap * 2.5, a.r * 0.55);
-
-                                // Deform circle A toward B.
-                                deformVertices(a, nx, ny, impactStrength * (b.mass / totalMass));
-                                // Deform circle B toward A.
-                                var impactStrengthB = Math.min(overlap * 2.5, b.r * 0.55);
-                                deformVertices(b, -nx, -ny, impactStrengthB * (a.mass / totalMass));
-                            }
-                        }
+                        if (i === 0) ctx.moveTo(p1.x, p1.y);
+                        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
                     }
-
-                    // Spring vertices back to rest position.
-                    var stiffness = 0.18;
-                    var damping = 0.75;
-                    var maxVel = 5.0;
-                    for (var i = 0; i < circles.length; i++) {
-                        var c = circles[i];
-                        var minDist = c.r * 0.4;
-                        for (var k = 0; k < c.verts.length; k++) {
-                            var v = c.verts[k];
-                            var fx = (v.ox - v.x) * stiffness;
-                            var fy = (v.oy - v.y) * stiffness;
-                            v.vx = (v.vx + fx) * damping;
-                            v.vy = (v.vy + fy) * damping;
-
-                            // Cap vertex velocity.
-                            var vel = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
-                            if (vel > maxVel) {
-                                v.vx = (v.vx / vel) * maxVel;
-                                v.vy = (v.vy / vel) * maxVel;
-                            }
-
-                            v.x += v.vx;
-                            v.y += v.vy;
-
-                            // Clamp: never let vertex past 60% inward toward center.
-                            var d = Math.sqrt(v.x * v.x + v.y * v.y);
-                            if (d < minDist) {
-                                v.x = (v.x / d) * minDist;
-                                v.y = (v.y / d) * minDist;
-                                v.vx = 0;
-                                v.vy = 0;
-                            }
-                        }
-                    }
+                    ctx.closePath();
+                    ctx.fillStyle = "#000000";
+                    ctx.fill();
                 }
 
-                function deformVertices(circle, nx, ny, strength) {
-                    for (var k = 0; k < circle.verts.length; k++) {
-                        var v = circle.verts[k];
-                        // How much this vertex faces the impact direction.
-                        var len = Math.sqrt(v.ox * v.ox + v.oy * v.oy);
-                        if (len === 0) continue;
-                        var vnx = v.ox / len;
-                        var vny = v.oy / len;
-                        var dot = vnx * nx + vny * ny;
-
-                        // Only affect vertices facing the collision.
-                        if (dot > 0) {
-                            var influence = dot * dot;
-                            // Push vertex inward (toward center) creating concavity.
-                            v.vx -= vnx * strength * influence;
-                            v.vy -= vny * strength * influence;
+                // --- Main loop ---
+                function loop() {
+                    for (var i = 0; i < balls.length - 1; i++) {
+                        for (var j = i + 1; j < balls.length; j++) {
+                            balls[i].react(balls[j]);
                         }
                     }
-                }
+                    for (var i = 0; i < balls.length; i++) {
+                        if (balls[i] !== dragged) {
+                            balls[i].iterate();
+                        } else {
+                            balls[i].updateShape();
+                        }
+                    }
 
-                function draw() {
                     ctx.fillStyle = "#ffffff";
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                    for (var i = 0; i < circles.length; i++) {
-                        var c = circles[i];
-                        ctx.save();
-                        ctx.translate(c.x, c.y);
-                        ctx.beginPath();
-
-                        // Draw smooth curve through deformed vertices.
-                        var verts = c.verts;
-                        var n = verts.length;
-                        for (var k = 0; k < n; k++) {
-                            var curr = verts[k];
-                            var next = verts[(k + 1) % n];
-                            var cpx = (curr.x + next.x) / 2;
-                            var cpy = (curr.y + next.y) / 2;
-                            if (k === 0) {
-                                var prev = verts[n - 1];
-                                ctx.moveTo((prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
-                            }
-                            ctx.quadraticCurveTo(curr.x, curr.y, cpx, cpy);
-                        }
-                        ctx.closePath();
-                        ctx.fillStyle = "#000000";
-                        ctx.fill();
-                        ctx.restore();
+                    for (var i = 0; i < balls.length; i++) {
+                        drawSmoothBall(balls[i]);
                     }
-                }
 
-                function loop() {
-                    update();
-                    draw();
                     canvasAnimId = requestAnimationFrame(loop);
                 }
 
