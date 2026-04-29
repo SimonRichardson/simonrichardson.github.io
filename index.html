@@ -279,7 +279,26 @@
                     dock: repositionChain,
                     undock: undock,
                     onDragMove: onDragMove,
-                    onDragEnd: onDragEnd
+                    onDragEnd: onDragEnd,
+                    clampAll: function() {
+                        var ids = Object.keys(windows);
+                        for (var i = 0; i < ids.length; i++) {
+                            var el = windows[ids[i]];
+                            if (!el || el.style.display === "none") continue;
+                            var rect = el.getBoundingClientRect();
+                            var vw = window.innerWidth;
+                            var vh = window.innerHeight;
+                            var newLeft = el.offsetLeft;
+                            var newTop = el.offsetTop;
+                            if (rect.right > vw) newLeft = vw - rect.width;
+                            if (rect.bottom > vh - 32) newTop = vh - 32 - rect.height;
+                            if (newLeft < 0) newLeft = 0;
+                            if (newTop < 0) newTop = 0;
+                            el.style.left = newLeft + "px";
+                            el.style.top = newTop + "px";
+                            el.style.right = "auto";
+                        }
+                    }
                 };
             })();
 
@@ -683,6 +702,11 @@
 
             // Register and make color picker window draggable.
             window.makeDraggable("color", document.getElementById("color-window"), document.getElementById("color-grab-track"));
+
+            // Keep windows visible on browser resize.
+            window.addEventListener("resize", function() {
+                window.__dockSystem.clampAll();
+            });
 
             // Window controls.
             document.getElementById("window-minimize").addEventListener("click", function() {
