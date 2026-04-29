@@ -15,6 +15,7 @@
             <span class="bar-links">
                 <a href="https://github.com/SimonRichardson">github</a>
                 <a href="https://hachyderm.io/@simonrichardson">mastodon</a>
+                <button id="dark-mode-toggle" title="Toggle dark mode">&#128161;</button>
             </span>
         </footer>
 
@@ -240,6 +241,11 @@
             document.getElementById("window-toggle-breadcrumb").addEventListener("click", function() {
                 const bc = document.getElementById("breadcrumb");
                 bc.style.display = bc.style.display === "none" ? "block" : "none";
+            });
+
+            // Dark mode toggle.
+            document.getElementById("dark-mode-toggle").addEventListener("click", function() {
+                document.body.classList.toggle("dark-mode");
             });
         </script>
     </body>
