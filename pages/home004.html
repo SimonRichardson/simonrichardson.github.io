@@ -1,0 +1,367 @@
+<div id="settings-panel">
+    <div id="settings-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track"></div>
+    </div>
+    <div id="settings-chrome">
+        <div id="settings-body">
+            <label>
+                Balls
+                <input type="number" id="setting-balls" min="1" max="50" value="15">
+            </label>
+            <label>
+                Auto-rotate
+                <input type="checkbox" id="setting-autorotate" checked>
+            </label>
+            <button id="setting-apply">Apply</button>
+            <button id="setting-bounce">Bounce</button>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+    var settingsBalls = document.getElementById("setting-balls");
+
+    var settings = { numBalls: 15, autoRotate: true };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    document.getElementById("setting-autorotate").addEventListener("change", function() {
+        settings.autoRotate = this.checked;
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.numBalls = parseInt(settingsBalls.value, 10) || 15;
+        initBalls();
+    });
+
+    document.getElementById("setting-bounce").addEventListener("click", function() {
+        for (var i = 0; i < balls.length; i++) {
+            balls[i].vy = 5 + Math.random() * 5;
+        }
+    });
+
+    // Settings panel drag (uses dock system).
+    (function() {
+        var track = document.getElementById("settings-grab-track");
+        var dragging = false, offsetX = 0, offsetY = 0;
+
+        window.__dockSystem.register("settings", settingsPanel);
+
+        track.addEventListener("mousedown", function(e) {
+            dragging = true;
+            offsetX = e.clientX - settingsPanel.offsetLeft;
+            offsetY = e.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", e.clientX - offsetX, e.clientY - offsetY);
+        });
+
+        document.addEventListener("mouseup", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+
+        track.addEventListener("touchstart", function(e) {
+            dragging = true;
+            var touch = e.touches[0];
+            offsetX = touch.clientX - settingsPanel.offsetLeft;
+            offsetY = touch.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var touch = e.touches[0];
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", touch.clientX - offsetX, touch.clientY - offsetY);
+        });
+
+        document.addEventListener("touchend", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+    })();
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- 3D parameters ---
+    var PERSPECTIVE = 800;
+    var PLANE_SIZE = 250;
+    var GRAVITY = 0.15;
+    var BOUNCE = 0.95;
+    var DAMPING = 0.999;
+    var FRICTION = 0.99;
+
+    // --- Rotation via mouse/touch drag ---
+    var rotY = 0.4, rotX = -0.5;
+    var camDragging = false, lastMX = 0, lastMY = 0;
+
+    canvas.addEventListener("mousedown", function(e) {
+        camDragging = true;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (!camDragging) return;
+        var dx = e.clientX - lastMX;
+        rotY += dx * 0.005;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+
+    document.addEventListener("mouseup", function() {
+        camDragging = false;
+    });
+
+    canvas.addEventListener("touchstart", function(e) {
+        camDragging = true;
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+
+    document.addEventListener("touchmove", function(e) {
+        if (!camDragging) return;
+        var dx = e.touches[0].clientX - lastMX;
+        rotY += dx * 0.005;
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+
+    document.addEventListener("touchend", function() {
+        camDragging = false;
+    });
+
+    function applyRotation(x, y, z) {
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
+    }
+
+    function project(x, y, z) {
+        var scale = PERSPECTIVE / (PERSPECTIVE + z);
+        return {
+            sx: canvas.width / 2 + x * scale,
+            sy: canvas.height / 2 - y * scale,
+            scale: scale
+        };
+    }
+
+    // --- Ball class (constrained to plane: y >= 0 in world, plane at y=0) ---
+    function Ball(radius) {
+        this.radius = radius;
+        // Random position on the plane.
+        this.x = (Math.random() - 0.5) * PLANE_SIZE * 1.5;
+        this.y = radius + Math.random() * 150; // Start above plane.
+        this.z = (Math.random() - 0.5) * PLANE_SIZE * 1.5;
+        this.vx = (Math.random() - 0.5) * 3;
+        this.vy = Math.random() * 2;
+        this.vz = (Math.random() - 0.5) * 3;
+    }
+
+    var balls = [];
+
+    function initBalls() {
+        balls = [];
+        for (var i = 0; i < settings.numBalls; i++) {
+            balls.push(new Ball(12 + Math.random() * 16));
+        }
+    }
+    initBalls();
+
+    // --- Physics ---
+    function updatePhysics() {
+        for (var i = 0; i < balls.length; i++) {
+            var b = balls[i];
+
+            // Gravity (downward in world = negative y).
+            b.vy -= GRAVITY;
+
+            // Apply velocity.
+            b.vx *= DAMPING;
+            b.vy *= DAMPING;
+            b.vz *= DAMPING;
+            b.x += b.vx;
+            b.y += b.vy;
+            b.z += b.vz;
+
+            // Bounce off plane (y = 0).
+            if (b.y < b.radius) {
+                b.y = b.radius;
+                b.vy = -b.vy * BOUNCE;
+                // Horizontal friction on contact.
+                b.vx *= FRICTION;
+                b.vz *= FRICTION;
+            }
+
+            // Max bounce height.
+            var maxHeight = PLANE_SIZE * 1.5;
+            if (b.y > maxHeight) {
+                b.y = maxHeight;
+                b.vy = -Math.abs(b.vy) * BOUNCE;
+            }
+
+            // Keep within plane bounds (soft walls).
+            var limit = PLANE_SIZE;
+            if (b.x < -limit + b.radius) { b.x = -limit + b.radius; b.vx = Math.abs(b.vx) * BOUNCE; }
+            if (b.x > limit - b.radius) { b.x = limit - b.radius; b.vx = -Math.abs(b.vx) * BOUNCE; }
+            if (b.z < -limit + b.radius) { b.z = -limit + b.radius; b.vz = Math.abs(b.vz) * BOUNCE; }
+            if (b.z > limit - b.radius) { b.z = limit - b.radius; b.vz = -Math.abs(b.vz) * BOUNCE; }
+
+            // Ball-ball collisions.
+            for (var j = i + 1; j < balls.length; j++) {
+                var b2 = balls[j];
+                var dx = b2.x - b.x;
+                var dy = b2.y - b.y;
+                var dz = b2.z - b.z;
+                var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                var minDist = b.radius + b2.radius;
+                if (dist < minDist && dist > 0.001) {
+                    var nx = dx / dist;
+                    var ny = dy / dist;
+                    var nz = dz / dist;
+
+                    // Separate.
+                    var overlap = (minDist - dist) * 0.5;
+                    b.x -= nx * overlap;
+                    b.y -= ny * overlap;
+                    b.z -= nz * overlap;
+                    b2.x += nx * overlap;
+                    b2.y += ny * overlap;
+                    b2.z += nz * overlap;
+
+                    // Elastic collision.
+                    var relVx = b.vx - b2.vx;
+                    var relVy = b.vy - b2.vy;
+                    var relVz = b.vz - b2.vz;
+                    var relDot = relVx * nx + relVy * ny + relVz * nz;
+                    if (relDot > 0) {
+                        b.vx -= relDot * nx;
+                        b.vy -= relDot * ny;
+                        b.vz -= relDot * nz;
+                        b2.vx += relDot * nx;
+                        b2.vy += relDot * ny;
+                        b2.vz += relDot * nz;
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Rendering ---
+    function drawPlane() {
+        // Four corners of the plane in world space (y=0).
+        var corners = [
+            { x: -PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: 0, z:  PLANE_SIZE }
+        ];
+
+        var projected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(corners[i].x, corners[i].y, corners[i].z);
+            projected.push(project(r.x, r.y, r.z));
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(projected[0].sx, projected[0].sy);
+        ctx.lineTo(projected[1].sx, projected[1].sy);
+        ctx.lineTo(projected[2].sx, projected[2].sy);
+        ctx.lineTo(projected[3].sx, projected[3].sy);
+        ctx.closePath();
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+
+        // Rope around the edge, raised above the plane.
+        var ropeHeight = 40;
+        var ropeCorners = [
+            { x: -PLANE_SIZE, y: ropeHeight, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ropeHeight, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ropeHeight, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: ropeHeight, z:  PLANE_SIZE }
+        ];
+
+        var ropeProjected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(ropeCorners[i].x, ropeCorners[i].y, ropeCorners[i].z);
+            ropeProjected.push(project(r.x, r.y, r.z));
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(ropeProjected[0].sx, ropeProjected[0].sy);
+        ctx.lineTo(ropeProjected[1].sx, ropeProjected[1].sy);
+        ctx.lineTo(ropeProjected[2].sx, ropeProjected[2].sy);
+        ctx.lineTo(ropeProjected[3].sx, ropeProjected[3].sy);
+        ctx.closePath();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    function drawBall(b, rotated) {
+        var proj = project(rotated.x, rotated.y, rotated.z);
+        var screenRadius = b.radius * proj.scale;
+
+        ctx.beginPath();
+        ctx.arc(proj.sx, proj.sy, screenRadius, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+    }
+
+    // --- Animation loop ---
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (settings.autoRotate && !camDragging) {
+            rotY += 0.003;
+        }
+
+        updatePhysics();
+
+        // Plane is always behind all balls (balls are constrained to y >= 0).
+        drawPlane();
+
+        // Sort balls by z for correct overlap among themselves.
+        var drawList = [];
+        for (var i = 0; i < balls.length; i++) {
+            var r = applyRotation(balls[i].x, balls[i].y, balls[i].z);
+            drawList.push({ z: r.z, ball: balls[i], rotated: r });
+        }
+        drawList.sort(function(a, b) { return b.z - a.z; });
+
+        for (var i = 0; i < drawList.length; i++) {
+            drawBall(drawList[i].ball, drawList[i].rotated);
+        }
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    loop();
+})();
+</script>

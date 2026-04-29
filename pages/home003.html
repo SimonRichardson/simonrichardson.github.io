@@ -19,6 +19,7 @@
                 <input type="checkbox" id="setting-autorotate" checked>
             </label>
             <button id="setting-apply">Apply</button>
+            <button id="setting-bounce">Bounce</button>
         </div>
     </div>
 </div>
@@ -48,6 +49,28 @@
     document.getElementById("setting-apply").addEventListener("click", function() {
         settings.numBalls = parseInt(settingsBalls.value, 10) || 12;
         initBalls();
+    });
+
+    document.getElementById("setting-bounce").addEventListener("click", function() {
+        for (var i = 0; i < balls.length; i++) {
+            var b = balls[i];
+            var dist = Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z) || 1;
+            var nx = b.x / dist;
+            var ny = b.y / dist;
+            var nz = b.z / dist;
+            // Ensure ball is outside sphere collision zone.
+            var safeMin = sphereRadius3D + b.radius + 5;
+            if (dist < safeMin) {
+                b.x = nx * safeMin;
+                b.y = ny * safeMin;
+                b.z = nz * safeMin;
+            }
+            // Set outward velocity (replace, don't accumulate).
+            var kick = 5 + Math.random() * 4;
+            b.vx = nx * kick;
+            b.vy = ny * kick;
+            b.vz = nz * kick;
+        }
     });
 
     // Settings panel drag (uses dock system).
@@ -293,6 +316,25 @@
                         b2.vy += relDot * bny * BOUNCE;
                         b2.vz += relDot * bnz * BOUNCE;
                     }
+                }
+            }
+
+            // Max distance from center - pull back if too far.
+            var maxDist = sphereRadius3D * 5;
+            dist = Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z);
+            if (dist > maxDist) {
+                var nx = b.x / dist;
+                var ny = b.y / dist;
+                var nz = b.z / dist;
+                b.x = nx * maxDist;
+                b.y = ny * maxDist;
+                b.z = nz * maxDist;
+                // Reflect inward.
+                var dot = b.vx * nx + b.vy * ny + b.vz * nz;
+                if (dot > 0) {
+                    b.vx -= 2 * dot * nx;
+                    b.vy -= 2 * dot * ny;
+                    b.vz -= 2 * dot * nz;
                 }
             }
         }
