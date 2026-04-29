@@ -1,0 +1,649 @@
+<div id="settings-panel" class="win-window">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>Parses a TrueType font file and renders A-Z, a-z glyphs directly from the outline data onto canvas.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Characters
+                    <input type="text" id="setting-chars" value="hello" style="width:100%;box-sizing:border-box;">
+                </label>
+                <label>
+                    Scale
+                    <input type="range" id="setting-scale" min="20" max="200" value="80">
+                </label>
+                <button id="setting-apply">Apply</button>
+                <button id="setting-save">Save Image</button>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    var settingsPanel = document.getElementById("settings-panel");
+
+    var settings = {
+        scale: 80,
+        chars: "hello"
+    };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    document.getElementById("setting-scale").addEventListener("input", function() {
+        settings.scale = parseInt(this.value, 10);
+        renderGlyphs();
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.chars = document.getElementById("setting-chars").value;
+        renderGlyphs();
+    });
+
+    document.getElementById("setting-save").addEventListener("click", function() {
+        var link = document.createElement("a");
+        link.download = "canvas.png";
+        link.href = document.getElementById("home-canvas").toDataURL("image/png");
+        link.click();
+    });
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- TTF Parser (minimal, for simple glyph outlines) ---
+    var glyphs = [];
+
+    function readUint16(data, offset) {
+        return (data[offset] << 8) | data[offset + 1];
+    }
+
+    function readInt16(data, offset) {
+        var v = (data[offset] << 8) | data[offset + 1];
+        return v >= 0x8000 ? v - 0x10000 : v;
+    }
+
+    function readUint32(data, offset) {
+        return ((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]) >>> 0;
+    }
+
+    function findTable(data, tag) {
+        var numTables = readUint16(data, 4);
+        for (var i = 0; i < numTables; i++) {
+            var off = 12 + i * 16;
+            var t = String.fromCharCode(data[off], data[off+1], data[off+2], data[off+3]);
+            if (t === tag) {
+                return { offset: readUint32(data, off + 8), length: readUint32(data, off + 12) };
+            }
+        }
+        return null;
+    }
+
+    function parseCmapFormat4(data, offset) {
+        // Format 4: segment mapping to delta values.
+        var segCount = readUint16(data, offset + 6) / 2;
+        var endCodes = [];
+        var startCodes = [];
+        var idDeltas = [];
+        var idRangeOffsets = [];
+        var rangeBase = offset + 14 + segCount * 6 + 2;
+
+        for (var i = 0; i < segCount; i++) {
+            endCodes.push(readUint16(data, offset + 14 + i * 2));
+        }
+        var startOff = offset + 14 + segCount * 2 + 2;
+        for (var i = 0; i < segCount; i++) {
+            startCodes.push(readUint16(data, startOff + i * 2));
+        }
+        var deltaOff = startOff + segCount * 2;
+        for (var i = 0; i < segCount; i++) {
+            idDeltas.push(readInt16(data, deltaOff + i * 2));
+        }
+        var rangeOff = deltaOff + segCount * 2;
+        for (var i = 0; i < segCount; i++) {
+            idRangeOffsets.push(readUint16(data, rangeOff + i * 2));
+        }
+
+        var map = {};
+        for (var i = 0; i < segCount; i++) {
+            if (endCodes[i] === 0xFFFF) break;
+            for (var c = startCodes[i]; c <= endCodes[i]; c++) {
+                var glyphIndex;
+                if (idRangeOffsets[i] === 0) {
+                    glyphIndex = (c + idDeltas[i]) & 0xFFFF;
+                } else {
+                    var idx = idRangeOffsets[i] / 2 + (c - startCodes[i]) + i;
+                    var glyphOff = rangeOff + idx * 2;
+                    glyphIndex = readUint16(data, glyphOff);
+                    if (glyphIndex !== 0) {
+                        glyphIndex = (glyphIndex + idDeltas[i]) & 0xFFFF;
+                    }
+                }
+                if (glyphIndex !== 0) {
+                    map[c] = glyphIndex;
+                }
+            }
+        }
+        return map;
+    }
+
+    function getCmap(data) {
+        var cmap = findTable(data, "cmap");
+        if (!cmap) return {};
+        var off = cmap.offset;
+        var numSubtables = readUint16(data, off + 2);
+        for (var i = 0; i < numSubtables; i++) {
+            var subOff = off + 4 + i * 8;
+            var platformID = readUint16(data, subOff);
+            var encodingID = readUint16(data, subOff + 2);
+            var tableOff = readUint32(data, subOff + 4);
+            var format = readUint16(data, off + tableOff);
+            if (format === 4 && (platformID === 3 || platformID === 0)) {
+                return parseCmapFormat4(data, off + tableOff);
+            }
+        }
+        return {};
+    }
+
+    function getLocaOffsets(data, numGlyphs, indexToLocFormat) {
+        var loca = findTable(data, "loca");
+        if (!loca) return [];
+        var offsets = [];
+        if (indexToLocFormat === 0) {
+            for (var i = 0; i <= numGlyphs; i++) {
+                offsets.push(readUint16(data, loca.offset + i * 2) * 2);
+            }
+        } else {
+            for (var i = 0; i <= numGlyphs; i++) {
+                offsets.push(readUint32(data, loca.offset + i * 4));
+            }
+        }
+        return offsets;
+    }
+
+    function parseSimpleGlyph(data, offset) {
+        var numContours = readInt16(data, offset);
+        if (numContours <= 0) return null;
+
+        var endPtsOfContours = [];
+        for (var i = 0; i < numContours; i++) {
+            endPtsOfContours.push(readUint16(data, offset + 10 + i * 2));
+        }
+        var numPoints = endPtsOfContours[numContours - 1] + 1;
+
+        var instrLength = readUint16(data, offset + 10 + numContours * 2);
+        var flagsOff = offset + 10 + numContours * 2 + 2 + instrLength;
+
+        // Read flags.
+        var flags = [];
+        var idx = flagsOff;
+        while (flags.length < numPoints) {
+            var flag = data[idx++];
+            flags.push(flag);
+            if (flag & 0x08) {
+                var repeat = data[idx++];
+                for (var r = 0; r < repeat; r++) {
+                    flags.push(flag);
+                }
+            }
+        }
+
+        // Read x coordinates.
+        var xCoords = [];
+        var x = 0;
+        for (var i = 0; i < numPoints; i++) {
+            var flag = flags[i];
+            if (flag & 0x02) {
+                var dx = data[idx++];
+                x += (flag & 0x10) ? dx : -dx;
+            } else if (!(flag & 0x10)) {
+                x += readInt16(data, idx);
+                idx += 2;
+            }
+            xCoords.push(x);
+        }
+
+        // Read y coordinates.
+        var yCoords = [];
+        var y = 0;
+        for (var i = 0; i < numPoints; i++) {
+            var flag = flags[i];
+            if (flag & 0x04) {
+                var dy = data[idx++];
+                y += (flag & 0x20) ? dy : -dy;
+            } else if (!(flag & 0x20)) {
+                y += readInt16(data, idx);
+                idx += 2;
+            }
+            yCoords.push(y);
+        }
+
+        // Build contours.
+        var contours = [];
+        var start = 0;
+        for (var c = 0; c < numContours; c++) {
+            var end = endPtsOfContours[c];
+            var points = [];
+            for (var i = start; i <= end; i++) {
+                points.push({
+                    x: xCoords[i],
+                    y: yCoords[i],
+                    onCurve: !!(flags[i] & 0x01)
+                });
+            }
+            contours.push(points);
+            start = end + 1;
+        }
+
+        return contours;
+    }
+
+    function parseTTF(data) {
+        var head = findTable(data, "head");
+        var maxp = findTable(data, "maxp");
+        var glyf = findTable(data, "glyf");
+        if (!head || !maxp || !glyf) return [];
+
+        var indexToLocFormat = readInt16(data, head.offset + 50);
+        var numGlyphs = readUint16(data, maxp.offset + 4);
+        var locaOffsets = getLocaOffsets(data, numGlyphs, indexToLocFormat);
+        var cmapMap = getCmap(data);
+
+        // Get A-Z, a-z glyphs.
+        var result = [];
+        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        for (var i = 0; i < chars.length; i++) {
+            var charCode = chars.charCodeAt(i);
+            var glyphIdx = cmapMap[charCode];
+            if (glyphIdx == null || glyphIdx >= numGlyphs) continue;
+            // Skip empty glyph slots.
+            if (locaOffsets[glyphIdx] === locaOffsets[glyphIdx + 1]) continue;
+            var glyphOff = glyf.offset + locaOffsets[glyphIdx];
+            var contours = null;
+            try {
+                contours = parseSimpleGlyph(data, glyphOff);
+            } catch (e) {
+                continue;
+            }
+            if (!contours) continue;
+            var xMin = readInt16(data, glyphOff + 2);
+            var yMin = readInt16(data, glyphOff + 4);
+            var xMax = readInt16(data, glyphOff + 6);
+            var yMax = readInt16(data, glyphOff + 8);
+            result.push({
+                char: chars[i],
+                contours: contours,
+                xMin: xMin, yMin: yMin, xMax: xMax, yMax: yMax
+            });
+        }
+        return result;
+    }
+
+    function renderGlyphs() {
+        // Called when settings change - rebuild the live letters.
+        dropTimer = 0;
+        initLetters();
+    }
+
+    // --- 3D parameters ---
+    var PERSPECTIVE = 800;
+    var PLANE_SIZE = 200;
+
+    // --- Rotation via mouse/touch drag ---
+    var rotY = 0.4, rotX = -0.6;
+    var camDragging = false, lastMX = 0;
+
+    canvas.addEventListener("mousedown", function(e) {
+        camDragging = true;
+        lastMX = e.clientX;
+    });
+    document.addEventListener("mousemove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.clientX - lastMX) * 0.005;
+        lastMX = e.clientX;
+    });
+    document.addEventListener("mouseup", function() { camDragging = false; });
+
+    canvas.addEventListener("touchstart", function(e) {
+        camDragging = true;
+        lastMX = e.touches[0].clientX;
+    });
+    document.addEventListener("touchmove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.touches[0].clientX - lastMX) * 0.005;
+        lastMX = e.touches[0].clientX;
+    });
+    document.addEventListener("touchend", function() { camDragging = false; });
+
+    function applyRotation(x, y, z) {
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
+    }
+
+    function project(x, y, z) {
+        var s = PERSPECTIVE / (PERSPECTIVE + z);
+        return { sx: canvas.width / 2 + x * s, sy: canvas.height / 2 - y * s, scale: s };
+    }
+
+    // --- Letter physics objects ---
+    var letters = [];
+
+    function initLetters() {
+        letters = [];
+        if (!glyphs || glyphs.length === 0) return;
+
+        var glyphMap = {};
+        for (var gi = 0; gi < glyphs.length; gi++) {
+            glyphMap[glyphs[gi].char] = glyphs[gi];
+        }
+
+        for (var ci = 0; ci < settings.chars.length; ci++) {
+            var ch = settings.chars[ci];
+            var glyph = glyphMap[ch];
+            if (!glyph) continue;
+            // Weight: uppercase heavier, lowercase lighter.
+            var isUpper = ch >= 'A' && ch <= 'Z';
+            var weight = isUpper ? 0.7 + Math.random() * 0.3 : 0.3 + Math.random() * 0.3;
+            var yAngle = Math.random() * Math.PI * 2;
+            letters.push({
+                glyph: glyph,
+                x: (Math.random() - 0.5) * PLANE_SIZE * 1.2,
+                y: 200 + Math.random() * 50,
+                z: (Math.random() - 0.5) * PLANE_SIZE * 1.2,
+                vx: (Math.random() - 0.5) * 3,
+                vy: 0,
+                vz: (Math.random() - 0.5) * 3,
+                q: quatFromAxisAngle(0, 1, 0, yAngle),
+                vRotY: (Math.random() - 0.5) * 0.1,
+                landed: false,
+                weight: weight,
+                bounce: 0.5 + (1 - weight) * 0.3,
+                slerpSpeed: 0.05 + (1 - weight) * 0.15,
+                delay: ci * 15 + Math.random() * 10,
+                active: false
+            });
+        }
+    }
+
+    // --- Quaternion helpers ---
+    function quatFromAxisAngle(ax, ay, az, angle) {
+        var half = angle * 0.5;
+        var s = Math.sin(half);
+        return [ax * s, ay * s, az * s, Math.cos(half)];
+    }
+
+    function quatMultiply(a, b) {
+        return [
+            a[3]*b[0] + a[0]*b[3] + a[1]*b[2] - a[2]*b[1],
+            a[3]*b[1] - a[0]*b[2] + a[1]*b[3] + a[2]*b[0],
+            a[3]*b[2] + a[0]*b[1] - a[1]*b[0] + a[2]*b[3],
+            a[3]*b[3] - a[0]*b[0] - a[1]*b[1] - a[2]*b[2]
+        ];
+    }
+
+    function quatNormalize(q) {
+        var len = Math.sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+        if (len < 0.0001) return [0, 0, 0, 1];
+        return [q[0]/len, q[1]/len, q[2]/len, q[3]/len];
+    }
+
+    function quatSlerp(a, b, t) {
+        var dot = a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
+        if (dot < 0) { b = [-b[0], -b[1], -b[2], -b[3]]; dot = -dot; }
+        if (dot > 0.9995) {
+            var r = [a[0] + t*(b[0]-a[0]), a[1] + t*(b[1]-a[1]), a[2] + t*(b[2]-a[2]), a[3] + t*(b[3]-a[3])];
+            return quatNormalize(r);
+        }
+        var theta = Math.acos(dot);
+        var sinT = Math.sin(theta);
+        var wa = Math.sin((1-t)*theta) / sinT;
+        var wb = Math.sin(t*theta) / sinT;
+        return [wa*a[0]+wb*b[0], wa*a[1]+wb*b[1], wa*a[2]+wb*b[2], wa*a[3]+wb*b[3]];
+    }
+
+    function quatRotatePoint(q, px, py, pz) {
+        // Rotate point by quaternion: q * p * q^-1
+        var qx = q[0], qy = q[1], qz = q[2], qw = q[3];
+        // t = 2 * cross(q.xyz, p)
+        var tx = 2 * (qy*pz - qz*py);
+        var ty = 2 * (qz*px - qx*pz);
+        var tz = 2 * (qx*py - qy*px);
+        return [
+            px + qw*tx + (qy*tz - qz*ty),
+            py + qw*ty + (qz*tx - qx*tz),
+            pz + qw*tz + (qx*ty - qy*tx)
+        ];
+    }
+
+    var GRAVITY = 0.5;
+    var FRICTION = 0.96;
+
+    // Target quaternion: lying flat on the plane (rotated 90° around X).
+    function flatQuat(yAngle) {
+        var qY = quatFromAxisAngle(0, 1, 0, yAngle);
+        var qX = quatFromAxisAngle(1, 0, 0, Math.PI / 2);
+        return quatMultiply(qX, qY);
+    }
+
+    var dropTimer = 0;
+
+    function updateLetters() {
+        dropTimer++;
+        for (var i = 0; i < letters.length; i++) {
+            var L = letters[i];
+
+            // Wait for delay before activating.
+            if (!L.active) {
+                if (dropTimer >= L.delay) L.active = true;
+                else continue;
+            }
+
+            if (L.landed) {
+                continue;
+            }
+
+            L.vy -= GRAVITY;
+            L.x += L.vx;
+            L.y += L.vy;
+            L.z += L.vz;
+            L.vx *= FRICTION;
+            L.vz *= FRICTION;
+
+            var spinQ = quatFromAxisAngle(0, 1, 0, L.vRotY);
+            L.q = quatNormalize(quatMultiply(spinQ, L.q));
+
+            if (L.y <= 0) {
+                L.y = 0;
+                L.vy = -L.vy * L.bounce;
+                if (Math.abs(L.vy) < 0.3) {
+                    L.vy = 0;
+                    L.vx = 0;
+                    L.vz = 0;
+                    L.landed = true;
+                }
+            }
+
+            if (L.x < -PLANE_SIZE) { L.x = -PLANE_SIZE; L.vx = 0; }
+            if (L.x > PLANE_SIZE) { L.x = PLANE_SIZE; L.vx = 0; }
+            if (L.z < -PLANE_SIZE) { L.z = -PLANE_SIZE; L.vz = 0; }
+            if (L.z > PLANE_SIZE) { L.z = PLANE_SIZE; L.vz = 0; }
+        }
+    }
+
+    function drawPlane() {
+        var corners = [
+            { x: -PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: 0, z:  PLANE_SIZE }
+        ];
+        var projected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(corners[i].x, corners[i].y, corners[i].z);
+            projected.push(project(r.x, r.y, r.z));
+        }
+        ctx.beginPath();
+        ctx.moveTo(projected[0].sx, projected[0].sy);
+        for (var i = 1; i < 4; i++) ctx.lineTo(projected[i].sx, projected[i].sy);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+        ctx.fill();
+
+        // Rope around the edge, raised above the plane.
+        var ropeHeight = 40;
+        var ropeCorners = [
+            { x: -PLANE_SIZE, y: ropeHeight, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ropeHeight, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ropeHeight, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: ropeHeight, z:  PLANE_SIZE }
+        ];
+        var ropeProjected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(ropeCorners[i].x, ropeCorners[i].y, ropeCorners[i].z);
+            ropeProjected.push(project(r.x, r.y, r.z));
+        }
+        ctx.beginPath();
+        ctx.moveTo(ropeProjected[0].sx, ropeProjected[0].sy);
+        ctx.lineTo(ropeProjected[1].sx, ropeProjected[1].sy);
+        ctx.lineTo(ropeProjected[2].sx, ropeProjected[2].sy);
+        ctx.lineTo(ropeProjected[3].sx, ropeProjected[3].sy);
+        ctx.closePath();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    function drawLetters() {
+        // Only draw active letters, sorted by z-depth.
+        var active = letters.filter(function(L) { return L.active; });
+        var sorted = active.sort(function(a, b) {
+            var ra = applyRotation(a.x, a.y, a.z);
+            var rb = applyRotation(b.x, b.y, b.z);
+            return rb.z - ra.z;
+        });
+
+        for (var i = 0; i < sorted.length; i++) {
+            var L = sorted[i];
+            var glyphScale = settings.scale / 1000 * 0.4;
+            var q = L.q;
+            var gcx = (L.glyph.xMin + L.glyph.xMax) / 2;
+            // Pivot from the bottom of the glyph (yMin) so it tips from its base.
+            var pivotY = L.glyph.yMin;
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+
+            for (var c = 0; c < L.glyph.contours.length; c++) {
+                var pts = L.glyph.contours[c];
+                if (pts.length === 0) continue;
+
+                function xformPt(gx, gy) {
+                    var lx = (gx - gcx) * glyphScale;
+                    var ly = (gy - pivotY) * glyphScale;
+                    var rotated = quatRotatePoint(q, lx, ly, 0);
+                    var wx = L.x + rotated[0];
+                    var wy = L.y + rotated[1];
+                    var wz = L.z + rotated[2];
+                    var cam = applyRotation(wx, wy, wz);
+                    return project(cam.x, cam.y, cam.z);
+                }
+
+                var startPt = pts[0].onCurve ? pts[0] : {
+                    x: (pts[0].x + pts[pts.length - 1].x) / 2,
+                    y: (pts[0].y + pts[pts.length - 1].y) / 2
+                };
+                var sp = xformPt(startPt.x, startPt.y);
+                ctx.moveTo(sp.sx, sp.sy);
+
+                var j = 0;
+                while (j < pts.length) {
+                    var cur = pts[j];
+                    var next = pts[(j + 1) % pts.length];
+                    if (cur.onCurve) {
+                        if (next.onCurve) {
+                            var np = xformPt(next.x, next.y);
+                            ctx.lineTo(np.sx, np.sy);
+                            j++;
+                        } else {
+                            var next2 = pts[(j + 2) % pts.length];
+                            var endPt;
+                            if (next2.onCurve) { endPt = next2; j += 2; }
+                            else { endPt = { x: (next.x + next2.x) / 2, y: (next.y + next2.y) / 2 }; j++; }
+                            var cp = xformPt(next.x, next.y);
+                            var ep = xformPt(endPt.x, endPt.y);
+                            ctx.quadraticCurveTo(cp.sx, cp.sy, ep.sx, ep.sy);
+                        }
+                    } else {
+                        var endPt;
+                        if (next.onCurve) { endPt = next; j++; }
+                        else { endPt = { x: (cur.x + next.x) / 2, y: (cur.y + next.y) / 2 }; j++; }
+                        var cp = xformPt(cur.x, cur.y);
+                        var ep = xformPt(endPt.x, endPt.y);
+                        ctx.quadraticCurveTo(cp.sx, cp.sy, ep.sx, ep.sy);
+                    }
+                }
+                ctx.closePath();
+            }
+            ctx.fill("evenodd");
+        }
+    }
+
+    // --- Animation loop ---
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (!camDragging) rotY += 0.002;
+        updateLetters();
+        drawPlane();
+        drawLetters();
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    // Load and parse the font.
+    fetch("fonts/Caprasimo-Regular.ttf")
+        .then(function(res) { return res.arrayBuffer(); })
+        .then(function(buf) {
+            var data = new Uint8Array(buf);
+            glyphs = parseTTF(data);
+            initLetters();
+            loop();
+        })
+        .catch(function(e) {
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "14px sans-serif";
+            ctx.fillText("Failed to load font: " + e.message, 20, 40);
+        });
+})();
+</script>
