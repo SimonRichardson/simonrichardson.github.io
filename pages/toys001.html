@@ -6,7 +6,7 @@
     </div>
     <div id="settings-chrome">
         <div id="settings-body">
-            <div class="settings-fieldset">
+            <div class="settings-fieldset collapsed">
                 <div class="settings-legend">About</div>
                 <p>Soft-body physics simulation with gravitational attraction. Balls orbit a fixed center mass and collide with each other.</p>
             </div>
@@ -356,7 +356,7 @@
             ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
         }
         ctx.closePath();
-        ctx.fillStyle = "#000000";
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
     }
 
@@ -395,13 +395,12 @@
             }
         }
 
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Draw center ball as solid circle (no deformation).
         ctx.beginPath();
         ctx.arc(centerBall.x, centerBall.y, centerBall.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#000000";
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
 
         // Draw other balls with deformation.
