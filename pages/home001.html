@@ -1,0 +1,394 @@
+<div id="settings-panel">
+    <div id="settings-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track"></div>
+    </div>
+    <div id="settings-chrome">
+        <div id="settings-body">
+            <label>
+                Gravity
+                <input type="range" id="setting-gravity" min="0" max="100" value="20">
+            </label>
+            <label>
+                Balls
+                <input type="number" id="setting-balls" min="1" max="40" value="18">
+            </label>
+            <button id="setting-apply">Apply</button>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+    var settingsGravity = document.getElementById("setting-gravity");
+    var settingsBalls = document.getElementById("setting-balls");
+
+    var settings = { gravity: 0.1, numBalls: 18 };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    settingsGravity.addEventListener("input", function() {
+        settings.gravity = parseFloat(this.value) / 200;
+    });
+
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.numBalls = parseInt(settingsBalls.value, 10) || 18;
+        resetBalls();
+    });
+
+    // Settings panel drag (uses dock system).
+    (function() {
+        var track = document.getElementById("settings-grab-track");
+        var dragging = false, offsetX = 0, offsetY = 0;
+
+        window.__dockSystem.register("settings", settingsPanel);
+
+        track.addEventListener("mousedown", function(e) {
+            dragging = true;
+            offsetX = e.clientX - settingsPanel.offsetLeft;
+            offsetY = e.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", e.clientX - offsetX, e.clientY - offsetY);
+        });
+
+        document.addEventListener("mouseup", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+
+        track.addEventListener("touchstart", function(e) {
+            dragging = true;
+            var touch = e.touches[0];
+            offsetX = touch.clientX - settingsPanel.offsetLeft;
+            offsetY = touch.clientY - settingsPanel.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var touch = e.touches[0];
+            settingsPanel.style.right = "auto";
+            window.__dockSystem.onDragMove("settings", touch.clientX - offsetX, touch.clientY - offsetY);
+        });
+
+        document.addEventListener("touchend", function() {
+            if (dragging) window.__dockSystem.onDragEnd("settings");
+            dragging = false;
+        });
+    })();
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- Ball class (ported from test.paper.js) ---
+    function Ball(r, px, py, vAngle, vLen) {
+        this.radius = r;
+        this.x = px;
+        this.y = py;
+        this.vx = Math.cos(vAngle) * vLen;
+        this.vy = Math.sin(vAngle) * vLen;
+        this.maxVec = 15;
+        this.numSegment = Math.floor(r / 3 + 2);
+        this.boundOffset = [];
+        this.boundOffsetBuff = [];
+        this.sidePoints = [];
+
+        for (var i = 0; i < this.numSegment; i++) {
+            this.boundOffset.push(this.radius);
+            this.boundOffsetBuff.push(this.radius);
+            var angle = (2 * Math.PI / this.numSegment) * i;
+            this.sidePoints.push({ x: Math.cos(angle), y: Math.sin(angle) });
+        }
+    }
+
+    Ball.prototype.iterate = function() {
+        this.checkBorders();
+        var vecLen = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (vecLen > this.maxVec) {
+            this.vx = (this.vx / vecLen) * this.maxVec;
+            this.vy = (this.vy / vecLen) * this.maxVec;
+        }
+        this.x += this.vx;
+        this.y += this.vy;
+        this.updateShape();
+    };
+
+    Ball.prototype.checkBorders = function() {
+        var w = canvas.width;
+        var h = canvas.height;
+        if (this.x < -this.radius) this.x = w + this.radius;
+        if (this.x > w + this.radius) this.x = -this.radius;
+        if (this.y < -this.radius) this.y = h + this.radius;
+        if (this.y > h + this.radius) this.y = -this.radius;
+    };
+
+    Ball.prototype.updateShape = function() {
+        for (var i = 0; i < this.numSegment; i++) {
+            if (this.boundOffset[i] < this.radius / 4)
+                this.boundOffset[i] = this.radius / 4;
+            var next = (i + 1) % this.numSegment;
+            var prev = (i > 0) ? i - 1 : this.numSegment - 1;
+            var offset = this.boundOffset[i];
+            offset += (this.radius - offset) / 15;
+            offset += ((this.boundOffset[next] + this.boundOffset[prev]) / 2 - offset) / 3;
+            this.boundOffsetBuff[i] = this.boundOffset[i] = offset;
+        }
+    };
+
+    Ball.prototype.react = function(b) {
+        var dx = this.x - b.x;
+        var dy = this.y - b.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < this.radius + b.radius && dist !== 0) {
+            var overlap = this.radius + b.radius - dist;
+            var nx = dx / dist;
+            var ny = dy / dist;
+            var force = overlap * 0.015;
+
+            if (!this.fixed) {
+                this.vx += nx * force;
+                this.vy += ny * force;
+            }
+            if (!b.fixed) {
+                b.vx -= nx * force;
+                b.vy -= ny * force;
+            }
+
+            if (!this.fixed) {
+                this.calcBounds(b);
+                this.updateBounds();
+            }
+            if (!b.fixed) {
+                b.calcBounds(this);
+                b.updateBounds();
+            }
+        }
+    };
+
+    Ball.prototype.getBoundOffset = function(px, py) {
+        var dx = this.x - px;
+        var dy = this.y - py;
+        var angle = Math.atan2(dy, dx) + Math.PI;
+        var idx = Math.floor((angle / (2 * Math.PI)) * this.boundOffset.length) % this.boundOffset.length;
+        if (idx < 0) idx += this.boundOffset.length;
+        return this.boundOffset[idx];
+    };
+
+    Ball.prototype.calcBounds = function(b) {
+        for (var i = 0; i < this.numSegment; i++) {
+            var tp = this.getSidePoint(i);
+            var bLen = b.getBoundOffset(tp.x, tp.y);
+            var dx = tp.x - b.x;
+            var dy = tp.y - b.y;
+            var td = Math.sqrt(dx * dx + dy * dy);
+            if (td < bLen) {
+                this.boundOffsetBuff[i] -= (bLen - td) / 2;
+            }
+        }
+    };
+
+    Ball.prototype.getSidePoint = function(index) {
+        return {
+            x: this.x + this.sidePoints[index].x * this.boundOffset[index],
+            y: this.y + this.sidePoints[index].y * this.boundOffset[index]
+        };
+    };
+
+    Ball.prototype.updateBounds = function() {
+        for (var i = 0; i < this.numSegment; i++)
+            this.boundOffset[i] = this.boundOffsetBuff[i];
+    };
+
+    // --- Create balls ---
+    var balls = [];
+    var centerBall = null;
+
+    function resetBalls() {
+        balls.length = 0;
+        var centerRadius = Math.min(canvas.width, canvas.height) / 5;
+        centerBall = new Ball(centerRadius, canvas.width / 2, canvas.height / 2, 0, 0);
+        centerBall.fixed = true;
+        balls.push(centerBall);
+
+        for (var i = 0; i < settings.numBalls; i++) {
+            var radius = Math.random() * 60 + 60;
+            var px = Math.random() * canvas.width;
+            var py = Math.random() * canvas.height;
+            var vAngle = Math.random() * Math.PI * 2;
+            var vLen = Math.random() * 10;
+            var b = new Ball(radius, px, py, vAngle, vLen);
+            b.fixed = false;
+            balls.push(b);
+        }
+    }
+    resetBalls();
+
+    // --- Drag support ---
+    var dragged = null;
+    var dragOffX = 0;
+    var dragOffY = 0;
+
+    canvas.addEventListener("mousedown", function(e) {
+        var rect = canvas.getBoundingClientRect();
+        var mx = e.clientX - rect.left;
+        var my = e.clientY - rect.top;
+        for (var i = balls.length - 1; i >= 0; i--) {
+            var b = balls[i];
+            if (b.fixed) continue;
+            var dx = mx - b.x;
+            var dy = my - b.y;
+            if (dx * dx + dy * dy <= b.radius * b.radius) {
+                dragged = b;
+                dragOffX = dx;
+                dragOffY = dy;
+                b.vx = 0;
+                b.vy = 0;
+                break;
+            }
+        }
+    });
+
+    canvas.addEventListener("mousemove", function(e) {
+        if (!dragged) return;
+        var rect = canvas.getBoundingClientRect();
+        dragged.x = e.clientX - rect.left - dragOffX;
+        dragged.y = e.clientY - rect.top - dragOffY;
+    });
+
+    canvas.addEventListener("mouseup", function() { dragged = null; });
+
+    canvas.addEventListener("touchstart", function(e) {
+        var rect = canvas.getBoundingClientRect();
+        var t = e.touches[0];
+        var mx = t.clientX - rect.left;
+        var my = t.clientY - rect.top;
+        for (var i = balls.length - 1; i >= 0; i--) {
+            var b = balls[i];
+            if (b.fixed) continue;
+            var dx = mx - b.x;
+            var dy = my - b.y;
+            if (dx * dx + dy * dy <= b.radius * b.radius) {
+                dragged = b;
+                dragOffX = dx;
+                dragOffY = dy;
+                b.vx = 0;
+                b.vy = 0;
+                e.preventDefault();
+                break;
+            }
+        }
+    });
+
+    canvas.addEventListener("touchmove", function(e) {
+        if (!dragged) return;
+        var rect = canvas.getBoundingClientRect();
+        var t = e.touches[0];
+        dragged.x = t.clientX - rect.left - dragOffX;
+        dragged.y = t.clientY - rect.top - dragOffY;
+        e.preventDefault();
+    });
+
+    canvas.addEventListener("touchend", function() { dragged = null; });
+
+    // --- Smooth closed path (Catmull-Rom to cubic Bezier) ---
+    function drawSmoothBall(ball) {
+        var pts = [];
+        for (var i = 0; i < ball.numSegment; i++) {
+            pts.push(ball.getSidePoint(i));
+        }
+        var n = pts.length;
+        if (n < 3) return;
+
+        ctx.beginPath();
+        for (var i = 0; i < n; i++) {
+            var p0 = pts[(i - 1 + n) % n];
+            var p1 = pts[i];
+            var p2 = pts[(i + 1) % n];
+            var p3 = pts[(i + 2) % n];
+
+            var cp1x = p1.x + (p2.x - p0.x) / 6;
+            var cp1y = p1.y + (p2.y - p0.y) / 6;
+            var cp2x = p2.x - (p3.x - p1.x) / 6;
+            var cp2y = p2.y - (p3.y - p1.y) / 6;
+
+            if (i === 0) ctx.moveTo(p1.x, p1.y);
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+    }
+
+    // --- Main loop ---
+    function loop() {
+        // Keep center ball centered and sized on resize.
+        centerBall.x = canvas.width / 2;
+        centerBall.y = canvas.height / 2;
+        centerBall.radius = Math.min(canvas.width, canvas.height) / 5;
+
+        // Apply slight gravity toward center ball (read live from settings).
+        var gravity = settings.gravity;
+        for (var i = 1; i < balls.length; i++) {
+            var b = balls[i];
+            if (b === dragged) continue;
+            var dx = centerBall.x - b.x;
+            var dy = centerBall.y - b.y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0) {
+                b.vx += (dx / dist) * gravity;
+                b.vy += (dy / dist) * gravity;
+            }
+        }
+
+        for (var i = 0; i < balls.length - 1; i++) {
+            for (var j = i + 1; j < balls.length; j++) {
+                balls[i].react(balls[j]);
+            }
+        }
+        for (var i = 0; i < balls.length; i++) {
+            if (balls[i].fixed) continue;
+            if (balls[i] !== dragged) {
+                balls[i].iterate();
+            } else {
+                balls[i].updateShape();
+            }
+        }
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw center ball as solid circle (no deformation).
+        ctx.beginPath();
+        ctx.arc(centerBall.x, centerBall.y, centerBall.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+
+        // Draw other balls with deformation.
+        for (var i = 1; i < balls.length; i++) {
+            drawSmoothBall(balls[i]);
+        }
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    loop();
+})();
+</script>
