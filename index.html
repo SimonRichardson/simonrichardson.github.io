@@ -49,6 +49,20 @@
             </div>
         </div>
 
+        <div id="color-window" style="display:none;">
+            <div id="color-grab">
+                <button id="color-minimize" title="Minimize">_</button>
+                <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+                <div id="color-grab-track"></div>
+            </div>
+            <div id="color-chrome">
+                <div id="color-window-body">
+                    <div id="color-palette"></div>
+                    <div id="color-preview"></div>
+                </div>
+            </div>
+        </div>
+
 
         <script>
             // --- Window docking system ---
@@ -356,7 +370,7 @@
                 if (!keys) return;
 
                 const sel = document.createElement("select");
-                sel.setAttribute("size", Math.min(keys.length, 6).toString());
+                sel.setAttribute("size", "6");
                 sel.className = "nav-select";
                 sel.dataset.depth = depth;
 
@@ -578,6 +592,63 @@
                 });
             })();
 
+            // Draggable color picker window via grab track (uses dock system).
+            (function() {
+                const win = document.getElementById("color-window");
+                const track = document.getElementById("color-grab-track");
+                let dragging = false;
+                let offsetX = 0;
+                let offsetY = 0;
+
+                window.__dockSystem.register("color", win);
+
+                track.addEventListener("mousedown", function(e) {
+                    dragging = true;
+                    var currentTop = win.offsetTop;
+                    var currentLeft = win.offsetLeft;
+                    win.style.bottom = "auto";
+                    win.style.top = currentTop + "px";
+                    win.style.left = currentLeft + "px";
+                    offsetX = e.clientX - currentLeft;
+                    offsetY = e.clientY - currentTop;
+                    e.preventDefault();
+                });
+
+                document.addEventListener("mousemove", function(e) {
+                    if (!dragging) return;
+                    window.__dockSystem.onDragMove("color", e.clientX - offsetX, e.clientY - offsetY);
+                });
+
+                document.addEventListener("mouseup", function() {
+                    if (dragging) window.__dockSystem.onDragEnd("color");
+                    dragging = false;
+                });
+
+                track.addEventListener("touchstart", function(e) {
+                    dragging = true;
+                    var currentTop = win.offsetTop;
+                    var currentLeft = win.offsetLeft;
+                    win.style.bottom = "auto";
+                    win.style.top = currentTop + "px";
+                    win.style.left = currentLeft + "px";
+                    const touch = e.touches[0];
+                    offsetX = touch.clientX - currentLeft;
+                    offsetY = touch.clientY - currentTop;
+                    e.preventDefault();
+                });
+
+                document.addEventListener("touchmove", function(e) {
+                    if (!dragging) return;
+                    const touch = e.touches[0];
+                    window.__dockSystem.onDragMove("color", touch.clientX - offsetX, touch.clientY - offsetY);
+                });
+
+                document.addEventListener("touchend", function() {
+                    if (dragging) window.__dockSystem.onDragEnd("color");
+                    dragging = false;
+                });
+            })();
+
             // Window controls.
             document.getElementById("window-minimize").addEventListener("click", function() {
                 const body = document.getElementById("window-body");
@@ -589,15 +660,32 @@
                 bc.style.display = bc.style.display === "none" ? "block" : "none";
             });
 
-            // Background color picker
-            const bgColorInput = document.createElement("input");
-            bgColorInput.type = "color";
-            bgColorInput.value = "#000000";
-            bgColorInput.style.display = "none";
-            document.body.appendChild(bgColorInput);
-            bgColorInput.addEventListener("input", function() {
-                document.body.style.backgroundColor = bgColorInput.value;
-            });
+            // Background color picker - Win95 palette window
+            var currentBgColor = "#000000";
+            var colorPalette = [
+                "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#c0c0c0",
+                "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff",
+                "#1d1d1d", "#2d2d2d", "#3d3d3d", "#4d4d4d", "#5d5d5d", "#6d6d6d", "#7d7d7d", "#8d8d8d",
+                "#330000", "#663300", "#336600", "#003300", "#003366", "#000066", "#330066", "#660066",
+                "#660000", "#996633", "#669900", "#006633", "#006699", "#000099", "#660099", "#990066",
+                "#990000", "#cc9900", "#99cc00", "#009966", "#0099cc", "#0000cc", "#9900cc", "#cc0066",
+                "#cc3300", "#ffcc00", "#ccff33", "#33cc66", "#33ccff", "#3366ff", "#cc33ff", "#ff3399"
+            ];
+            var paletteEl = document.getElementById("color-palette");
+            for (var i = 0; i < colorPalette.length; i++) {
+                var swatch = document.createElement("div");
+                swatch.className = "color-swatch";
+                swatch.style.backgroundColor = colorPalette[i];
+                swatch.dataset.color = colorPalette[i];
+                swatch.addEventListener("click", function() {
+                    currentBgColor = this.dataset.color;
+                    document.body.style.backgroundColor = currentBgColor;
+                    document.getElementById("color-preview").style.backgroundColor = currentBgColor;
+                    savePrefs();
+                });
+                paletteEl.appendChild(swatch);
+            }
+            document.getElementById("color-preview").style.backgroundColor = currentBgColor;
 
             // Prefs window toggle
             document.getElementById("window-settings").addEventListener("click", function() {
@@ -609,12 +697,18 @@
                 body.style.display = body.style.display === "none" ? "flex" : "none";
             });
             document.getElementById("pref-bgcolor").addEventListener("click", function() {
-                bgColorInput.click();
+                var cw = document.getElementById("color-window");
+                cw.style.display = cw.style.display === "none" ? "flex" : "none";
+            });
+            document.getElementById("color-minimize").addEventListener("click", function() {
+                var body = document.getElementById("color-window-body");
+                body.style.display = body.style.display === "none" ? "block" : "none";
             });
             document.getElementById("pref-clear-cookies").addEventListener("click", function() {
                 document.cookie = "sitePrefs=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
                 document.body.style.backgroundColor = "";
-                bgColorInput.value = "#000000";
+                currentBgColor = "#000000";
+                document.getElementById("color-preview").style.backgroundColor = currentBgColor;
             });
 
             // Undock buttons - all buttons with class dock-undock-btn trigger undock.
@@ -647,7 +741,7 @@
                 var nav = document.getElementById("nav-window");
                 var set = document.getElementById("settings-panel");
                 var prefs = {
-                    bgColor: bgColorInput.value,
+                    bgColor: currentBgColor,
                     navLeft: nav.offsetLeft,
                     navTop: nav.offsetTop,
                     setLeft: set.offsetLeft,
@@ -661,8 +755,9 @@
                 try {
                     var prefs = JSON.parse(raw);
                     if (prefs.bgColor) {
+                        currentBgColor = prefs.bgColor;
                         document.body.style.backgroundColor = prefs.bgColor;
-                        bgColorInput.value = prefs.bgColor;
+                        document.getElementById("color-preview").style.backgroundColor = prefs.bgColor;
                     }
                     var nav = document.getElementById("nav-window");
                     var set = document.getElementById("settings-panel");
@@ -679,11 +774,7 @@
             }
             loadPrefs();
 
-            // Save on color change
-            bgColorInput.addEventListener("change", savePrefs);
-
             // Save positions on drag end
-            var origDragEnd = window.__dockSystem && window.__dockSystem.onDragEnd;
             document.addEventListener("mouseup", function() { setTimeout(savePrefs, 50); });
             document.addEventListener("touchend", function() { setTimeout(savePrefs, 50); });
 

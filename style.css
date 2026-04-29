@@ -170,6 +170,106 @@ body {
     border-bottom: 1px solid #ffffff;
 }
 
+/* Color picker window */
+#color-window {
+    position: absolute;
+    bottom: 48px;
+    left: 240px;
+    display: flex;
+    flex-direction: row;
+    z-index: 10001;
+    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+#color-grab {
+    width: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #c0c0c0;
+    border-top: 2px solid #ffffff;
+    border-left: 2px solid #ffffff;
+    border-bottom: 2px solid #808080;
+    padding: 2px 0;
+    gap: 2px;
+}
+
+#color-grab-track {
+    flex: 1;
+    width: 100%;
+    cursor: grab;
+    background-image:
+        radial-gradient(circle, #808080 1px, transparent 1px),
+        radial-gradient(circle, #808080 1px, transparent 1px);
+    background-size: 6px 6px;
+    background-position: 0 0, 3px 3px;
+}
+
+#color-grab-track:active {
+    cursor: grabbing;
+}
+
+#color-grab button {
+    width: 14px;
+    height: 14px;
+    font-size: 8px;
+    font-family: sans-serif;
+    font-weight: bold;
+    line-height: 1;
+    padding: 0;
+    border-top: 1px solid #ffffff;
+    border-left: 1px solid #ffffff;
+    border-right: 1px solid #808080;
+    border-bottom: 1px solid #808080;
+    background-color: #c0c0c0;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+#color-grab button:active {
+    border-top: 1px solid #808080;
+    border-left: 1px solid #808080;
+    border-right: 1px solid #ffffff;
+    border-bottom: 1px solid #ffffff;
+}
+
+#color-chrome {
+    background-color: #c0c0c0;
+    border-top: 2px solid #ffffff;
+    border-right: 2px solid #808080;
+    border-bottom: 2px solid #808080;
+}
+
+#color-window-body {
+    padding: 6px;
+}
+
+#color-palette {
+    display: grid;
+    grid-template-columns: repeat(8, 16px);
+    gap: 2px;
+}
+
+.color-swatch {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #808080;
+    cursor: pointer;
+}
+
+.color-swatch:hover {
+    border-color: #ffffff;
+}
+
+#color-preview {
+    margin-top: 4px;
+    height: 16px;
+    border-top: 1px solid #808080;
+    border-left: 1px solid #808080;
+    border-right: 1px solid #ffffff;
+    border-bottom: 1px solid #ffffff;
+}
+
 /* Grab handle on the left */
 #window-grab {
     width: 18px;
@@ -601,6 +701,47 @@ body {
     border-left-color: #555555;
     border-right-color: #1a1a1a;
     border-bottom-color: #1a1a1a;
+}
+
+.dark-mode #color-window {
+    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.dark-mode #color-grab {
+    background-color: #3a3a3a;
+    border-top-color: #555555;
+    border-left-color: #555555;
+    border-bottom-color: #1a1a1a;
+}
+
+.dark-mode #color-grab-track {
+    background-image:
+        radial-gradient(circle, #666666 1px, transparent 1px),
+        radial-gradient(circle, #666666 1px, transparent 1px);
+}
+
+.dark-mode #color-grab button {
+    background-color: #3a3a3a;
+    color: #e0e0e0;
+    border-top-color: #555555;
+    border-left-color: #555555;
+    border-right-color: #1a1a1a;
+    border-bottom-color: #1a1a1a;
+}
+
+.dark-mode #color-chrome {
+    background-color: #3a3a3a;
+    border-top-color: #555555;
+    border-right-color: #1a1a1a;
+    border-bottom-color: #1a1a1a;
+}
+
+.dark-mode .color-swatch {
+    border-color: #1a1a1a;
+}
+
+.dark-mode .color-swatch:hover {
+    border-color: #e0e0e0;
 }
 
 .dark-mode #window-grab {
