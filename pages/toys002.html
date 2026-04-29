@@ -21,6 +21,7 @@
                     <input type="number" id="setting-ribbons" min="1" max="8" value="1">
                 </label>
                 <button id="setting-apply">Apply</button>
+                <button id="setting-save">Save Image</button>
             </div>
         </div>
     </div>
@@ -55,6 +56,13 @@
     document.getElementById("setting-apply").addEventListener("click", function() {
         settings.numRibbons = parseInt(settingsRibbons.value, 10) || 1;
         initRibbons();
+    });
+
+    document.getElementById("setting-save").addEventListener("click", function() {
+        var link = document.createElement("a");
+        link.download = "canvas.png";
+        link.href = document.getElementById("home-canvas").toDataURL("image/png");
+        link.click();
     });
 
     // Settings panel drag (uses dock system).

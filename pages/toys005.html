@@ -25,6 +25,7 @@
                     <input type="range" id="setting-speed" min="0" max="20" value="5">
                 </label>
                 <button id="setting-apply">Regenerate</button>
+                <button id="setting-save">Save Image</button>
             </div>
         </div>
     </div>
@@ -69,6 +70,13 @@
         seed = Math.random() * 10000;
         scrollOffsetX = 0;
         scrollOffsetY = 0;
+    });
+
+    document.getElementById("setting-save").addEventListener("click", function() {
+        var link = document.createElement("a");
+        link.download = "terrain.png";
+        link.href = document.getElementById("home-canvas").toDataURL("image/png");
+        link.click();
     });
 
     // Settings panel drag (uses dock system).
@@ -229,7 +237,7 @@
 
         var scale = settings.scale;
         var levels = settings.levels;
-        var cellSize = 6;
+        var cellSize = 10;
         var cx = canvas.width / 2;
         var cy = canvas.height / 2;
         var waveFreq = 0.008;
@@ -273,6 +281,17 @@
             }
         }
 
+        // Precompute wave offset per cell (avoids noise call in inner loop per level).
+        var waveGrid = new Array(rows);
+        for (var r = 0; r < rows; r++) {
+            waveGrid[r] = new Array(cols);
+            for (var c = 0; c < cols; c++) {
+                var px = c * cellSize;
+                var py = r * cellSize;
+                waveGrid[r][c] = Math.sin((px - cx) * waveFreq + time * 2) * Math.sin((py - cy) * waveFreq * 0.5 + time) * 0.08;
+            }
+        }
+
         // Draw contour lines using marching squares.
         // Apply sub-cell translation for smooth scrolling without jitter.
         ctx.save();
@@ -300,12 +319,7 @@
 
             for (var r = 0; r < rows - 1; r++) {
                 for (var c = 0; c < cols - 1; c++) {
-                    // Wave modulates the threshold per cell position.
-                    var px = c * cellSize;
-                    var py = r * cellSize;
-                    var wave = Math.sin((px - cx) * waveFreq + time * 2) * Math.sin((py - cy) * waveFreq * 0.5 + time) * 0.08;
-                    wave += noise(px * 0.01 + time, py * 0.01) * 0.03;
-                    var localThreshold = threshold + wave;
+                    var localThreshold = threshold + waveGrid[r][c];
 
                     var tl = grid[r][c];
                     var tr = grid[r][c + 1];

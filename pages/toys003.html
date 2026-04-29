@@ -25,6 +25,7 @@
                     <input type="checkbox" id="setting-autorotate" checked>
                 </label>
                 <button id="setting-apply">Apply</button>
+                <button id="setting-save">Save Image</button>
                 <button id="setting-bounce">Bounce</button>
             </div>
         </div>
@@ -64,6 +65,13 @@
     document.getElementById("setting-apply").addEventListener("click", function() {
         settings.numBalls = parseInt(settingsBalls.value, 10) || 12;
         initBalls();
+    });
+
+    document.getElementById("setting-save").addEventListener("click", function() {
+        var link = document.createElement("a");
+        link.download = "canvas.png";
+        link.href = document.getElementById("home-canvas").toDataURL("image/png");
+        link.click();
     });
 
     document.getElementById("setting-bounce").addEventListener("click", function() {
