@@ -12,3 +12,76 @@
     <li>Position: Software Engineer</li>
     <li>Language: Go</li>
 </ul>
+
+<h3>Recent work (2023–2026)</h3>
+<p>Key areas:</p>
+
+<ul>
+    <li><strong>Architecture and layering</strong> — Led the introduction of a clean layered
+        architecture across the codebase: domain types, services, and state (persistence) as
+        distinct concerns. This gave the project testable boundaries, clearer ownership of
+        business logic, and a path away from the monolithic facade pattern that had accumulated
+        over years of development.
+        [<a href="https://github.com/juju/juju/pull/22029">1</a>][<a href="https://github.com/juju/juju/pull/19144">2</a>]
+    </li>
+
+    <li><strong>Database migration from MongoDB to Dqlite</strong> — Helped architect and implement
+        the transition of Juju's persistence layer from MongoDB to Dqlite (a distributed SQLite).
+        This touched nearly every subsystem — designing schemas, writing DDL migrations, building
+        the database worker infrastructure, and ensuring upgrade re-entrancy so controllers could
+        move forward safely.
+        [<a href="https://github.com/juju/juju/pull/19293">1</a>][<a href="https://github.com/juju/juju/pull/19588">2</a>]
+    </li>
+
+    <li><strong>Object store</strong> — Built the object store subsystem from the ground up, providing
+        blob storage for charms and resources. Implemented both local file-backed and S3-compatible
+        backends, wired through the API server and machine manifolds, with a focus on correctness
+        around hashing and content verification.
+        [<a href="https://github.com/juju/juju/pull/22268">1</a>][<a href="https://github.com/juju/juju/pull/22002">2</a>][<a href="https://github.com/juju/juju/pull/21898">3</a>]
+    </li>
+
+    <li><strong>Tracing and observability</strong> — Introduced OpenTelemetry tracing throughout the
+        system. Built a dedicated tracer worker, threaded trace and span context through the API
+        client layer, and enabled charm-level tracing configuration via the control socket. This
+        gave operators visibility into request flows across controllers, agents, and workloads for
+        the first time.
+        [<a href="https://github.com/juju/juju/pull/22146">1</a>][<a href="https://github.com/juju/juju/pull/22144">2</a>][<a href="https://github.com/juju/juju/pull/20766">3</a>]
+    </li>
+
+    <li><strong>Technical leadership</strong> — Guided architectural decisions across the team,
+        reviewed and shaped the direction of major subsystems, and mentored engineers through
+        complex refactoring work. Drove conventions around testing patterns, error handling, and
+        package structure that improved consistency across the project.</li>
+
+    <li><strong>Worker and watcher infrastructure</strong> — Rebuilt core worker lifecycle management,
+        including a new watcher registry, upgrade steps workers (controller and machine), the
+        undertaker worker for model deletion, and the charm revision updater. Each designed with
+        clean shutdown semantics and dependency injection.
+        [<a href="https://github.com/juju/juju/pull/20411">1</a>][<a href="https://github.com/juju/juju/pull/21110">2</a>][<a href="https://github.com/juju/juju/pull/21705">3</a>]
+    </li>
+
+    <li><strong>Model migration</strong> — Worked on model import/export and the migration target,
+        including correct handling of model deletion, re-entrancy during upgrades, and ensuring
+        the migration path worked end-to-end with the new database layer.
+        [<a href="https://github.com/juju/juju/pull/21714">1</a>][<a href="https://github.com/juju/juju/pull/21956">2</a>][<a href="https://github.com/juju/juju/pull/21450">3</a>]
+    </li>
+
+    <li><strong>API server</strong> — Reworked the API handler layer, removed legacy resource
+        tracking, added authentication and authorisation to control socket HTTP endpoints, and
+        improved connection handling for cross-model relations. Introduced a remote caller
+        pattern for federated API communication.
+        [<a href="https://github.com/juju/juju/pull/21710">1</a>][<a href="https://github.com/juju/juju/pull/20884">2</a>]
+    </li>
+
+    <li><strong>Provisioning and machine lifecycle</strong> — Optimised provisioning info retrieval,
+        added machine placement and architecture handling, and introduced machine presence tracking
+        via the status service.
+        [<a href="https://github.com/juju/juju/pull/21239">1</a>][<a href="https://github.com/juju/juju/pull/20101">2</a>][<a href="https://github.com/juju/juju/pull/20110">3</a>]
+    </li>
+
+    <li><strong>Upgrades</strong> — Designed the upgrade path for controllers and machines moving
+        between major versions, including automatic model upgrades post-migration and ensuring
+        the upgrade steps worker ran correctly on all agent types.
+        [<a href="https://github.com/juju/juju/pull/21574">1</a>][<a href="https://github.com/juju/juju/pull/21529">2</a>][<a href="https://github.com/juju/juju/pull/21506">3</a>]
+    </li>
+</ul>
