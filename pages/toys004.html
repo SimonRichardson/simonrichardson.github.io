@@ -132,39 +132,74 @@
     var rotY = 0.4, rotX = -0.5;
     var camDragging = false, lastMX = 0, lastMY = 0;
 
+    // Pendulum dragging.
+    var pendDragging = false;
+
+    function isPendulumHit(mx, my) {
+        var pPos = getPendulumPos();
+        var r = applyRotation(pPos.x, pPos.y, pPos.z);
+        var proj = project(r.x, r.y, r.z);
+        var screenR = PENDULUM_RADIUS * proj.scale;
+        var dx = mx - proj.sx;
+        var dy = my - proj.sy;
+        return (dx * dx + dy * dy) <= (screenR + 10) * (screenR + 10);
+    }
+
     canvas.addEventListener("mousedown", function(e) {
-        camDragging = true;
+        if (isPendulumHit(e.clientX, e.clientY)) {
+            pendDragging = true;
+            pendAngVel = 0;
+        } else {
+            camDragging = true;
+        }
         lastMX = e.clientX;
         lastMY = e.clientY;
     });
 
     document.addEventListener("mousemove", function(e) {
-        if (!camDragging) return;
         var dx = e.clientX - lastMX;
-        rotY += dx * 0.005;
+        if (pendDragging) {
+            pendAngle += dx * 0.005;
+            pendAngle = Math.max(-Math.PI * 0.8, Math.min(Math.PI * 0.8, pendAngle));
+        } else if (camDragging) {
+            rotY += dx * 0.005;
+        }
         lastMX = e.clientX;
         lastMY = e.clientY;
     });
 
     document.addEventListener("mouseup", function() {
+        pendDragging = false;
         camDragging = false;
     });
 
     canvas.addEventListener("touchstart", function(e) {
-        camDragging = true;
-        lastMX = e.touches[0].clientX;
-        lastMY = e.touches[0].clientY;
+        var tx = e.touches[0].clientX;
+        var ty = e.touches[0].clientY;
+        if (isPendulumHit(tx, ty)) {
+            pendDragging = true;
+            pendAngVel = 0;
+        } else {
+            camDragging = true;
+        }
+        lastMX = tx;
+        lastMY = ty;
     });
 
     document.addEventListener("touchmove", function(e) {
-        if (!camDragging) return;
         var dx = e.touches[0].clientX - lastMX;
-        rotY += dx * 0.005;
+        if (pendDragging) {
+            pendAngle += dx * 0.005;
+            pendAngle = Math.max(-Math.PI * 0.8, Math.min(Math.PI * 0.8, pendAngle));
+        } else if (camDragging) {
+            rotY += dx * 0.005;
+        }
         lastMX = e.touches[0].clientX;
         lastMY = e.touches[0].clientY;
     });
 
     document.addEventListener("touchend", function() {
+        pendDragging = false;
         camDragging = false;
     });
 
@@ -288,7 +323,95 @@
         }
     }
 
-    // --- Rendering ---
+    // --- Pendulum ---
+    var PENDULUM_LENGTH = 350;
+    var PENDULUM_ANCHOR_Y = 350; // Height above plane where rope is attached.
+    var PENDULUM_RADIUS = 40;
+    var PENDULUM_DAMPING = 0.99998;
+    var PENDULUM_GRAVITY = 0.5;
+
+    // Pendulum state: swings in x-z plane, angle from vertical.
+    var pendAngle = Math.PI / 3; // Start at 60 degrees for bigger swing.
+    var pendAngVel = 0;
+    var pendSwingDir = 0; // Direction of swing in radians (around y-axis).
+
+    function updatePendulum() {
+        if (pendDragging) return; // Don't update physics while dragging.
+        // Simple pendulum: angular acceleration = -(g/L) * sin(angle)
+        var angAcc = -(PENDULUM_GRAVITY / PENDULUM_LENGTH) * Math.sin(pendAngle);
+        pendAngVel += angAcc;
+        pendAngVel *= PENDULUM_DAMPING;
+        pendAngle += pendAngVel;
+
+        // Slowly rotate swing direction for variety.
+        pendSwingDir += 0.002;
+    }
+
+    function getPendulumPos() {
+        // Pendulum bob position in world space.
+        var swingX = Math.sin(pendAngle) * PENDULUM_LENGTH * Math.cos(pendSwingDir);
+        var swingZ = Math.sin(pendAngle) * PENDULUM_LENGTH * Math.sin(pendSwingDir);
+        var swingY = PENDULUM_ANCHOR_Y - Math.cos(pendAngle) * PENDULUM_LENGTH;
+        return { x: swingX, y: swingY, z: swingZ };
+    }
+
+    function pendulumBallCollisions() {
+        var pPos = getPendulumPos();
+        // Pendulum velocity (approximate from angular velocity).
+        var speed = pendAngVel * PENDULUM_LENGTH;
+        var pvx = speed * Math.cos(pendAngle) * Math.cos(pendSwingDir);
+        var pvz = speed * Math.cos(pendAngle) * Math.sin(pendSwingDir);
+        var pvy = speed * Math.sin(pendAngle);
+
+        for (var i = 0; i < balls.length; i++) {
+            var b = balls[i];
+            var dx = b.x - pPos.x;
+            var dy = b.y - pPos.y;
+            var dz = b.z - pPos.z;
+            var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            var minDist = PENDULUM_RADIUS + b.radius;
+            if (dist < minDist && dist > 0.001) {
+                // Push ball away from pendulum.
+                var nx = dx / dist;
+                var ny = dy / dist;
+                var nz = dz / dist;
+                var overlap = minDist - dist;
+                b.x += nx * overlap;
+                b.y += ny * overlap;
+                b.z += nz * overlap;
+
+                // Transfer pendulum velocity to ball.
+                var impactForce = 1.5;
+                b.vx += pvx * impactForce * 0.3 + nx * 3;
+                b.vy += pvy * impactForce * 0.3 + ny * 2;
+                b.vz += pvz * impactForce * 0.3 + nz * 3;
+
+                // Slow pendulum slightly on impact.
+                pendAngVel *= 0.92;
+            }
+        }
+    }
+
+    function drawPendulum(pendRotated, anchorRotated) {
+        var anchorProj = project(anchorRotated.x, anchorRotated.y, anchorRotated.z);
+        var bobProj = project(pendRotated.x, pendRotated.y, pendRotated.z);
+        var screenRadius = PENDULUM_RADIUS * bobProj.scale;
+
+        // Draw rope.
+        ctx.beginPath();
+        ctx.moveTo(anchorProj.sx, anchorProj.sy);
+        ctx.lineTo(bobProj.sx, bobProj.sy);
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw bob.
+        ctx.beginPath();
+        ctx.arc(bobProj.sx, bobProj.sy, screenRadius, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+    }
+
     function drawPlane() {
         // Four corners of the plane in world space (y=0).
         var corners = [
@@ -358,20 +481,34 @@
         }
 
         updatePhysics();
+        updatePendulum();
+        pendulumBallCollisions();
 
         // Plane is always behind all balls (balls are constrained to y >= 0).
         drawPlane();
 
-        // Sort balls by z for correct overlap among themselves.
+        // Sort balls and pendulum by z for correct overlap.
         var drawList = [];
         for (var i = 0; i < balls.length; i++) {
             var r = applyRotation(balls[i].x, balls[i].y, balls[i].z);
-            drawList.push({ z: r.z, ball: balls[i], rotated: r });
+            drawList.push({ z: r.z, type: "ball", ball: balls[i], rotated: r });
         }
+
+        // Add pendulum to draw list.
+        var pPos = getPendulumPos();
+        var pendRotated = applyRotation(pPos.x, pPos.y, pPos.z);
+        var anchorRotated = applyRotation(0, PENDULUM_ANCHOR_Y, 0);
+        drawList.push({ z: pendRotated.z, type: "pendulum", pendRotated: pendRotated, anchorRotated: anchorRotated });
+
         drawList.sort(function(a, b) { return b.z - a.z; });
 
         for (var i = 0; i < drawList.length; i++) {
-            drawBall(drawList[i].ball, drawList[i].rotated);
+            var item = drawList[i];
+            if (item.type === "ball") {
+                drawBall(item.ball, item.rotated);
+            } else {
+                drawPendulum(item.pendRotated, item.anchorRotated);
+            }
         }
 
         window.__homeCanvasAnimId = requestAnimationFrame(loop);
