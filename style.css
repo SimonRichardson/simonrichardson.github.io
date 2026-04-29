@@ -19,11 +19,21 @@ body {
     left: 0;
     right: 0;
     bottom: 32px;
-    padding: 40px;
+    padding: 0;
     overflow-y: auto;
     color: #fff;
     font-size: 14px;
     line-height: 1.6;
+}
+
+#background-content:not(:has(canvas)) {
+    padding: 40px;
+}
+
+#home-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 #background-content h1,

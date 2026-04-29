@@ -8,7 +8,9 @@
         <link rel="stylesheet" href="style.css">
     </head>
     <body>
-        <div id="background-content"></div>
+        <div id="background-content">
+            <canvas id="home-canvas"></canvas>
+        </div>
 
         <footer id="bottom-bar">
             <span>Simon Richardson &copy; 2024</span>
@@ -37,6 +39,7 @@
             // Navigation tree data.
             // Each node is either a branch (children object) or a leaf (page string).
             const navData = {
+                "Home": { page: "__home__" },
                 "Projects": {
                     "Go": {
                         "juju": { page: "pages/juju.html" },
@@ -160,11 +163,22 @@
             }
 
             function loadPage(url) {
+                if (url === "__home__") {
+                    restoreCanvas();
+                    return;
+                }
+                stopCanvas();
                 const bg = document.getElementById("background-content");
                 fetch(url)
                     .then(function(res) { return res.text(); })
                     .then(function(html) { bg.innerHTML = html; })
                     .catch(function() { bg.innerHTML = "<p>Failed to load content.</p>"; });
+            }
+
+            function restoreCanvas() {
+                const bg = document.getElementById("background-content");
+                bg.innerHTML = '<canvas id="home-canvas"></canvas>';
+                startCanvas();
             }
 
             // Initialize: restore from hash or show root.
@@ -174,6 +188,7 @@
                     renderSelects(hash.split("/"));
                 } else {
                     renderSelects();
+                    startCanvas();
                 }
             })();
 
@@ -183,8 +198,301 @@
                     renderSelects(hash.split("/"));
                 } else {
                     renderSelects();
+                    restoreCanvas();
                 }
             });
+
+            // --- Interactive canvas simulation ---
+            var canvasAnimId = null;
+
+            function stopCanvas() {
+                if (canvasAnimId) {
+                    cancelAnimationFrame(canvasAnimId);
+                    canvasAnimId = null;
+                }
+            }
+
+            function startCanvas() {
+                stopCanvas();
+
+                var canvas = document.getElementById("home-canvas");
+                if (!canvas) return;
+                var ctx = canvas.getContext("2d");
+
+                function resize() {
+                    canvas.width = canvas.parentElement.clientWidth;
+                    canvas.height = canvas.parentElement.clientHeight;
+                }
+                resize();
+                window.addEventListener("resize", resize);
+
+                var NUM_VERTICES = 24;
+                var circles = [];
+                var numCircles = 20;
+
+                function createCircle(x, y, r) {
+                    var verts = [];
+                    for (var k = 0; k < NUM_VERTICES; k++) {
+                        var angle = (k / NUM_VERTICES) * Math.PI * 2;
+                        verts.push({
+                            ox: Math.cos(angle) * r,
+                            oy: Math.sin(angle) * r,
+                            x: Math.cos(angle) * r,
+                            y: Math.sin(angle) * r,
+                            vx: 0,
+                            vy: 0
+                        });
+                    }
+                    return {
+                        x: x,
+                        y: y,
+                        r: r,
+                        mass: r * r * r,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        verts: verts
+                    };
+                }
+
+                for (var i = 0; i < numCircles; i++) {
+                    var r = 60 + Math.random() * 40;
+                    circles.push(createCircle(
+                        Math.random() * canvas.width,
+                        Math.random() * canvas.height,
+                        r
+                    ));
+                }
+
+                var dragged = null;
+                var dragOffX = 0;
+                var dragOffY = 0;
+
+                canvas.addEventListener("mousedown", function(e) {
+                    var rect = canvas.getBoundingClientRect();
+                    var mx = e.clientX - rect.left;
+                    var my = e.clientY - rect.top;
+                    for (var i = circles.length - 1; i >= 0; i--) {
+                        var c = circles[i];
+                        var dx = mx - c.x;
+                        var dy = my - c.y;
+                        if (dx * dx + dy * dy <= c.r * c.r) {
+                            dragged = c;
+                            dragOffX = dx;
+                            dragOffY = dy;
+                            c.vx = 0;
+                            c.vy = 0;
+                            break;
+                        }
+                    }
+                });
+
+                canvas.addEventListener("mousemove", function(e) {
+                    if (!dragged) return;
+                    var rect = canvas.getBoundingClientRect();
+                    dragged.x = e.clientX - rect.left - dragOffX;
+                    dragged.y = e.clientY - rect.top - dragOffY;
+                });
+
+                canvas.addEventListener("mouseup", function() {
+                    dragged = null;
+                });
+
+                canvas.addEventListener("touchstart", function(e) {
+                    var rect = canvas.getBoundingClientRect();
+                    var t = e.touches[0];
+                    var mx = t.clientX - rect.left;
+                    var my = t.clientY - rect.top;
+                    for (var i = circles.length - 1; i >= 0; i--) {
+                        var c = circles[i];
+                        var dx = mx - c.x;
+                        var dy = my - c.y;
+                        if (dx * dx + dy * dy <= c.r * c.r) {
+                            dragged = c;
+                            dragOffX = dx;
+                            dragOffY = dy;
+                            c.vx = 0;
+                            c.vy = 0;
+                            e.preventDefault();
+                            break;
+                        }
+                    }
+                });
+
+                canvas.addEventListener("touchmove", function(e) {
+                    if (!dragged) return;
+                    var rect = canvas.getBoundingClientRect();
+                    var t = e.touches[0];
+                    dragged.x = t.clientX - rect.left - dragOffX;
+                    dragged.y = t.clientY - rect.top - dragOffY;
+                    e.preventDefault();
+                });
+
+                canvas.addEventListener("touchend", function() {
+                    dragged = null;
+                });
+
+                function update() {
+                    var w = canvas.width;
+                    var h = canvas.height;
+
+                    // Move circles.
+                    for (var i = 0; i < circles.length; i++) {
+                        var a = circles[i];
+                        if (a === dragged) continue;
+
+                        a.x += a.vx;
+                        a.y += a.vy;
+
+                        // Wrap around edges.
+                        if (a.x < -a.r) a.x = w + a.r;
+                        else if (a.x > w + a.r) a.x = -a.r;
+                        if (a.y < -a.r) a.y = h + a.r;
+                        else if (a.y > h + a.r) a.y = -a.r;
+                    }
+
+                    // Collision detection — push vertices inward at impact.
+                    for (var i = 0; i < circles.length; i++) {
+                        for (var j = i + 1; j < circles.length; j++) {
+                            var a = circles[i];
+                            var b = circles[j];
+                            var dx = b.x - a.x;
+                            var dy = b.y - a.y;
+                            var dist = Math.sqrt(dx * dx + dy * dy);
+                            var minDist = a.r + b.r;
+
+                            if (dist < minDist && dist > 0) {
+                                var nx = dx / dist;
+                                var ny = dy / dist;
+                                var overlap = minDist - dist;
+                                var totalMass = a.mass + b.mass;
+
+                                // Separate bodies.
+                                a.x -= nx * overlap * (b.mass / totalMass);
+                                a.y -= ny * overlap * (b.mass / totalMass);
+                                b.x += nx * overlap * (a.mass / totalMass);
+                                b.y += ny * overlap * (a.mass / totalMass);
+
+                                // Elastic collision impulse.
+                                if (a !== dragged && b !== dragged) {
+                                    var dvx = a.vx - b.vx;
+                                    var dvy = a.vy - b.vy;
+                                    var dvDotN = dvx * nx + dvy * ny;
+                                    if (dvDotN > 0) {
+                                        var impulse = (2 * dvDotN) / totalMass;
+                                        a.vx -= impulse * b.mass * nx;
+                                        a.vy -= impulse * b.mass * ny;
+                                        b.vx += impulse * a.mass * nx;
+                                        b.vy += impulse * a.mass * ny;
+                                    }
+                                }
+
+                                // Deform vertices near impact — push them concave.
+                                var impactStrength = Math.min(overlap * 2.5, a.r * 0.55);
+
+                                // Deform circle A toward B.
+                                deformVertices(a, nx, ny, impactStrength * (b.mass / totalMass));
+                                // Deform circle B toward A.
+                                var impactStrengthB = Math.min(overlap * 2.5, b.r * 0.55);
+                                deformVertices(b, -nx, -ny, impactStrengthB * (a.mass / totalMass));
+                            }
+                        }
+                    }
+
+                    // Spring vertices back to rest position.
+                    var stiffness = 0.18;
+                    var damping = 0.75;
+                    var maxVel = 5.0;
+                    for (var i = 0; i < circles.length; i++) {
+                        var c = circles[i];
+                        var minDist = c.r * 0.4;
+                        for (var k = 0; k < c.verts.length; k++) {
+                            var v = c.verts[k];
+                            var fx = (v.ox - v.x) * stiffness;
+                            var fy = (v.oy - v.y) * stiffness;
+                            v.vx = (v.vx + fx) * damping;
+                            v.vy = (v.vy + fy) * damping;
+
+                            // Cap vertex velocity.
+                            var vel = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
+                            if (vel > maxVel) {
+                                v.vx = (v.vx / vel) * maxVel;
+                                v.vy = (v.vy / vel) * maxVel;
+                            }
+
+                            v.x += v.vx;
+                            v.y += v.vy;
+
+                            // Clamp: never let vertex past 60% inward toward center.
+                            var d = Math.sqrt(v.x * v.x + v.y * v.y);
+                            if (d < minDist) {
+                                v.x = (v.x / d) * minDist;
+                                v.y = (v.y / d) * minDist;
+                                v.vx = 0;
+                                v.vy = 0;
+                            }
+                        }
+                    }
+                }
+
+                function deformVertices(circle, nx, ny, strength) {
+                    for (var k = 0; k < circle.verts.length; k++) {
+                        var v = circle.verts[k];
+                        // How much this vertex faces the impact direction.
+                        var len = Math.sqrt(v.ox * v.ox + v.oy * v.oy);
+                        if (len === 0) continue;
+                        var vnx = v.ox / len;
+                        var vny = v.oy / len;
+                        var dot = vnx * nx + vny * ny;
+
+                        // Only affect vertices facing the collision.
+                        if (dot > 0) {
+                            var influence = dot * dot;
+                            // Push vertex inward (toward center) creating concavity.
+                            v.vx -= vnx * strength * influence;
+                            v.vy -= vny * strength * influence;
+                        }
+                    }
+                }
+
+                function draw() {
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    for (var i = 0; i < circles.length; i++) {
+                        var c = circles[i];
+                        ctx.save();
+                        ctx.translate(c.x, c.y);
+                        ctx.beginPath();
+
+                        // Draw smooth curve through deformed vertices.
+                        var verts = c.verts;
+                        var n = verts.length;
+                        for (var k = 0; k < n; k++) {
+                            var curr = verts[k];
+                            var next = verts[(k + 1) % n];
+                            var cpx = (curr.x + next.x) / 2;
+                            var cpy = (curr.y + next.y) / 2;
+                            if (k === 0) {
+                                var prev = verts[n - 1];
+                                ctx.moveTo((prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
+                            }
+                            ctx.quadraticCurveTo(curr.x, curr.y, cpx, cpy);
+                        }
+                        ctx.closePath();
+                        ctx.fillStyle = "#000000";
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+
+                function loop() {
+                    update();
+                    draw();
+                    canvasAnimId = requestAnimationFrame(loop);
+                }
+
+                loop();
+            }
 
             // Draggable window via grab track.
             (function() {
