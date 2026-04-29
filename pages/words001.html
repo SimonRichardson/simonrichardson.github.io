@@ -1,0 +1,96 @@
+<div style="max-width:640px;margin:40px auto;padding:20px;font-family:sans-serif;color:#fff;line-height:1.7;">
+    <p style="color:#888;font-size:11px;margin-bottom:4px;">DRAFT</p>
+    <h2 style="margin-top:0;">Software development is a loser's game</h2>
+    <p style="color:#aaa;font-size:12px;">
+        Riffing on
+        <a href="https://dev.to/thawkin3/software-engineering-is-a-loser-s-game-2k20" style="color:#809fff;">Tyler Hawkins</a>
+        and
+        <a href="https://thehosk.medium.com/software-development-is-a-losers-game-fc68bb30d7eb" style="color:#809fff;">Ben Hosking</a>.
+    </p>
+
+    <hr style="border:none;border-top:1px solid #444;margin:24px 0;">
+
+    <p>
+        There's this observation from Simon Ramo about amateur tennis: nobody wins
+        the match. Somebody loses it. Ball goes in the net, serve goes wide, someone
+        trips over their own feet. The other person just... keeps it in play. That's it.
+        That's the whole strategy.
+    </p>
+
+    <p>
+        Software's the same. I've been at this long enough to know the projects that go
+        wrong aren't missing some flash of brilliance. They're drowning in their own daft
+        mistakes. A misread requirement here. A test nobody wrote there. A merge on a Friday
+        because someone couldn't be arsed waiting. A thousand tiny "it'll be reet"s piled
+        up until the whole thing topples over.
+    </p>
+
+    <h3>The bit that sticks</h3>
+
+    <p>
+        What I like about this framing is how dead boring the winning strategy is. You
+        don't need to be clever. You need to be careful. Read the diff. Run the tests. Ask
+        the dumb question in the meeting. Check your assumptions. Nobody's writing blog
+        posts about it, but it's the thing that actually matters.
+    </p>
+
+    <p>Both articles cover the obvious stuff: jumping into code before you've understood
+       the problem, not testing your own work, ignoring the standards your team agreed on
+       last month. Aye, guilty on all counts at various points. I reckon everyone is if
+       they're being honest. The interesting bit isn't spotting the mistakes though, it's
+       building habits and systems that make them less likely.</p>
+
+    <h3>Tooling isn't bureaucracy</h3>
+
+    <p>
+        Linters. Formatters. CI. Self-review checklists. People moan about these like
+        they're overhead. They're not. They're the net that catches the ball before it
+        hits the floor. I've worked on codebases with proper automated checks and
+        codebases without. The difference is massive.
+    </p>
+
+    <p>
+        The tooling doesn't make you good. It stops you being rubbish on a Thursday
+        afternoon when you're knackered and thinking about tea.
+    </p>
+
+    <p>
+        AI and LLMs fit in here too. Not as some replacement for thinking, but as another
+        layer of "have I missed owt?" A second pair of eyes that doesn't get bored.
+        It'll catch the typo in your SQL, point out you forgot to handle an error, or
+        flag that your test doesn't actually assert anything useful.
+        But when you let an LLM write code for you, you still own every line of it.
+        Completely. If it introduces a bug, that's your bug now. If it picks a bad
+        abstraction, you chose to keep it. Folk merge generated code without reading it
+        properly because it "looks right" and came from a tool they trust. That's just
+        a new flavour of the same unforced error. The tool wrote it. You shipped it.
+    </p>
+
+    <h3>The team angle</h3>
+
+    <p>
+        I think the original articles don't go far enough. They frame it as an individual
+        thing, that you should be more careful. Right, fine. But how do you build a team
+        that structurally makes fewer mistakes? That's the more interesting problem.
+    </p>
+
+    <ul>
+        <li><strong>Small changes.</strong> Smaller diffs are easier to review. Easier to
+            revert. Easier to reason about. This isn't controversial. Do it anyway.</li>
+        <li><strong>Clear ownership.</strong> "Everyone owns it" means nobody does. Put a
+            name on it.</li>
+        <li><strong>Blameless post-mortems.</strong> You learn from mistakes you can talk
+            about. If people get bollocked for errors, they hide them. Then you get
+            bigger errors.</li>
+        <li><strong>Make the right thing easy.</strong> If your test suite takes 40 minutes,
+            people skip it. If deploys are scary, people batch them up. Fix the
+            infrastructure. The humans will follow.</li>
+    </ul>
+
+    <hr style="border:none;border-top:1px solid #444;margin:24px 0;">
+
+    <p style="color:#aaa;">
+        You don't win at software by being brilliant. You win by not being daft, or at
+        least by being daft less often and catching it sooner.
+    </p>
+</div>

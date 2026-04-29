@@ -314,7 +314,9 @@
                     "Waves": { page: "pages/toys006.html" },
                     "Glyphs": { page: "pages/toys007.html" },
                 },
-                "Writing": {},
+                "Writing": {
+                    "Loser's Game": { page: "pages/words001.html" },
+                },
                 "Projects": {
                     "Go": {
                         "juju": { page: "pages/juju.html" },
@@ -486,7 +488,7 @@
             }
 
             (function() {
-                var hash = window.location.hash.replace(/^#/, "");
+                var hash = decodeURIComponent(window.location.hash.replace(/^#/, ""));
                 if (hash) {
                     renderSelects(hash.split("/"));
                 } else {
@@ -496,7 +498,7 @@
             })();
 
             window.addEventListener("hashchange", function() {
-                var hash = window.location.hash.replace(/^#/, "");
+                var hash = decodeURIComponent(window.location.hash.replace(/^#/, ""));
                 if (hash) {
                     renderSelects(hash.split("/"));
                 } else {
