@@ -20,6 +20,10 @@
                     Balls
                     <input type="number" id="setting-balls" min="1" max="40" value="18">
                 </label>
+                <label>
+                    <input type="checkbox" id="setting-cmyk" checked>
+                    CMYK
+                </label>
                 <button id="setting-apply">Apply</button>
                 <button id="setting-save">Save Image</button>
             </div>
@@ -34,7 +38,7 @@
     var settingsGravity = document.getElementById("setting-gravity");
     var settingsBalls = document.getElementById("setting-balls");
 
-    var settings = { gravity: 0.1, numBalls: 18 };
+    var settings = { gravity: 0.1, numBalls: 18, cmyk: true };
 
     document.getElementById("settings-minimize").addEventListener("click", function() {
         var body = document.getElementById("settings-body");
@@ -64,6 +68,9 @@
         link.download = "canvas.png";
         link.href = document.getElementById("home-canvas").toDataURL("image/png");
         link.click();
+    });
+    document.getElementById("setting-cmyk").addEventListener("change", function() {
+        settings.cmyk = this.checked;
     });
 
     // Settings panel drag (uses dock system).
@@ -289,8 +296,23 @@
 
     canvas.addEventListener("touchend", function() { dragged = null; });
 
+    // --- CMYK layered rendering ---
+    var cmykColours = [
+        "rgb(0, 255, 255)",    // Cyan
+        "rgb(255, 0, 255)",    // Magenta
+        "rgb(255, 255, 0)",    // Yellow
+        "rgb(0, 0, 0)"        // Key (Black)
+    ];
+    var NUM_LAYERS = 4;
+    var layerOffsets = [
+        { x: -8, y: -8 },
+        { x: 8, y: -8 },
+        { x: 8, y: 8 },
+        { x: -8, y: 8 }
+    ];
+
     // --- Smooth closed path (Catmull-Rom to cubic Bezier) ---
-    function drawSmoothBall(ball) {
+    function drawSmoothBall(target, ball, colour) {
         var pts = [];
         for (var i = 0; i < ball.numSegment; i++) {
             pts.push(ball.getSidePoint(i));
@@ -298,7 +320,7 @@
         var n = pts.length;
         if (n < 3) return;
 
-        ctx.beginPath();
+        target.beginPath();
         for (var i = 0; i < n; i++) {
             var p0 = pts[(i - 1 + n) % n];
             var p1 = pts[i];
@@ -310,12 +332,12 @@
             var cp2x = p2.x - (p3.x - p1.x) / 6;
             var cp2y = p2.y - (p3.y - p1.y) / 6;
 
-            if (i === 0) ctx.moveTo(p1.x, p1.y);
-            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+            if (i === 0) target.moveTo(p1.x, p1.y);
+            target.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
         }
-        ctx.closePath();
-        ctx.fillStyle = "#ffffff";
-        ctx.fill();
+        target.closePath();
+        target.fillStyle = colour;
+        target.fill();
     }
 
     // --- Main loop ---
@@ -353,19 +375,57 @@
             }
         }
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (settings.cmyk) {
+            // Clear main canvas to white for multiply blending.
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Draw center ball as solid circle (no deformation).
-        ctx.beginPath();
-        ctx.arc(centerBall.x, centerBall.y, centerBall.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff";
-        ctx.fill();
+            // Render each CMYK layer with an offset, then multiply onto main canvas.
+            for (var layer = 0; layer < NUM_LAYERS; layer++) {
+                var offCanvas = document.createElement("canvas");
+                offCanvas.width = canvas.width;
+                offCanvas.height = canvas.height;
+                var offCtx = offCanvas.getContext("2d");
 
-        // Draw other balls with deformation.
-        for (var i = 1; i < balls.length; i++) {
-            drawSmoothBall(balls[i]);
+                offCtx.fillStyle = "#ffffff";
+                offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
+
+                var ox = layerOffsets[layer].x;
+                var oy = layerOffsets[layer].y;
+                offCtx.save();
+                offCtx.translate(ox, oy);
+
+                // Draw center ball.
+                offCtx.beginPath();
+                offCtx.arc(centerBall.x, centerBall.y, centerBall.radius, 0, Math.PI * 2);
+                offCtx.fillStyle = cmykColours[layer];
+                offCtx.fill();
+
+                // Draw other balls with deformation.
+                for (var i = 1; i < balls.length; i++) {
+                    drawSmoothBall(offCtx, balls[i], cmykColours[layer]);
+                }
+
+                offCtx.restore();
+
+                // Multiply this layer onto the main canvas.
+                ctx.globalCompositeOperation = "multiply";
+                ctx.drawImage(offCanvas, 0, 0);
+            }
+            ctx.globalCompositeOperation = "source-over";
+        } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Plain rendering — single colour, no layering.
+            ctx.beginPath();
+            ctx.arc(centerBall.x, centerBall.y, centerBall.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "#ffffff";
+            ctx.fill();
+
+            for (var i = 1; i < balls.length; i++) {
+                drawSmoothBall(ctx, balls[i], "#ffffff");
+            }
         }
-
         window.__homeCanvasAnimId = requestAnimationFrame(loop);
     }
 
