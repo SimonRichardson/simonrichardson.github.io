@@ -71,6 +71,12 @@ body {
     flex-direction: row;
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
     z-index: 10000;
+    outline: none;
+}
+
+.win-window:focus-visible {
+    outline: 2px solid #000080;
+    outline-offset: 2px;
 }
 
 .win-grab {
