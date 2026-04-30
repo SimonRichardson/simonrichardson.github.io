@@ -301,6 +301,10 @@
                     undock: undock,
                     onDragMove: onDragMove,
                     onDragEnd: onDragEnd,
+                    forceDock: function(ids) {
+                        dockChain = ids.slice();
+                        repositionChain();
+                    },
                     clampAll: function() {
                         var ids = Object.keys(windows);
                         for (var i = 0; i < ids.length; i++) {
@@ -335,6 +339,7 @@
                     "Waves": { page: "pages/toys006.html" },
                     "Glyphs": { page: "pages/toys007.html" },
                     "CMYK": { page: "pages/toys008.html" },
+                    "Raft": { page: "pages/toys009.html" },
                 },
                 "Writing": {
                     "Loser's Game": { page: "pages/words001.html" },
@@ -494,6 +499,10 @@
                         });
                         // Restore saved settings for this page.
                         restorePageSettings();
+                        // Clamp all panels on screen after restore.
+                        setTimeout(function() {
+                            if (window.__dockSystem) window.__dockSystem.clampAll();
+                        }, 50);
                         // Auto-save settings on any input change.
                         var panel = document.getElementById("settings-body");
                         if (panel) {
@@ -580,6 +589,7 @@
                 }
                 var prefs = {
                     bgColor: currentBgColor,
+                    darkMode: document.body.classList.contains("dark-mode"),
                     windowPositions: positions,
                     pageSettings: window.__pageSettings || {}
                 };
@@ -637,6 +647,9 @@
                         currentBgColor = prefs.bgColor;
                         document.body.style.backgroundColor = prefs.bgColor;
                         document.getElementById("color-preview").style.backgroundColor = prefs.bgColor;
+                    }
+                    if (prefs.darkMode) {
+                        document.body.classList.add("dark-mode");
                     }
                     if (prefs.windowPositions) {
                         window.__windowPositions = prefs.windowPositions;
@@ -828,6 +841,7 @@
             // Dark mode toggle.
             document.getElementById("dark-mode-toggle").addEventListener("click", function() {
                 document.body.classList.toggle("dark-mode");
+                savePrefs();
             });
 
             // Save positions on drag end

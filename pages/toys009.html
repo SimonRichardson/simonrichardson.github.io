@@ -1,0 +1,740 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>Raft consensus simulation. Nodes elect leaders, replicate logs, and self-heal when connections drop.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Nodes
+                    <input type="range" id="setting-nodes" min="5" max="25" value="13">
+                </label>
+                <label>
+                    Speed
+                    <input type="range" id="setting-stiffness" min="1" max="100" value="30">
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-animate" checked>
+                    Animate
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="raft-log-panel" class="win-window" tabindex="0" role="region" aria-label="Raft Log">
+    <div id="raft-log-grab" class="win-grab">
+        <button id="raft-log-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="raft-log-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="raft-log-content">
+        <div id="raft-log-chrome" class="win-chrome">
+            <div id="raft-log-body" class="win-body">
+                <div class="settings-fieldset">
+                    <div class="settings-legend">Raft Log</div>
+                    <textarea id="raft-log-text" readonly></textarea>
+                    <button id="raft-log-clear">Clear</button>
+                </div>
+            </div>
+        </div>
+        <div id="raft-log-resize-row">
+            <div id="raft-log-resize"></div>
+            <div id="raft-log-resize-corner"></div>
+        </div>
+    </div>
+    <div id="raft-log-resize-right"></div>
+</div>
+<canvas id="home-canvas"></canvas>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+
+    var settings = {
+        numNodes: 13,
+        speed: 1.5,
+        animate: true
+    };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    document.getElementById("setting-nodes").addEventListener("input", function() {
+        var n = parseInt(this.value, 10) || 13;
+        if (n !== settings.numNodes) {
+            settings.numNodes = n;
+            initNodes();
+        }
+    });
+    document.getElementById("setting-stiffness").addEventListener("input", function() {
+        var newSpeed = parseFloat(this.value) / 20;
+        // Scale all velocities to new speed.
+        for (var i = 0; i < nodes.length; i++) {
+            var mag = Math.sqrt(nodes[i].vx * nodes[i].vx + nodes[i].vy * nodes[i].vy) || 1;
+            nodes[i].vx = (nodes[i].vx / mag) * newSpeed;
+            nodes[i].vy = (nodes[i].vy / mag) * newSpeed;
+        }
+        settings.speed = newSpeed;
+    });
+    document.getElementById("setting-animate").addEventListener("change", function() {
+        settings.animate = this.checked;
+        if (settings.animate && !window.__homeCanvasAnimId) loop();
+    });
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    // --- Raft log panel ---
+    var raftLogPanel = document.getElementById("raft-log-panel");
+    var raftLogText = document.getElementById("raft-log-text");
+
+    document.getElementById("raft-log-minimize").addEventListener("click", function() {
+        var body = document.getElementById("raft-log-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var raftLegends = document.querySelectorAll("#raft-log-body .settings-legend");
+    for (var i = 0; i < raftLegends.length; i++) {
+        raftLegends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    document.getElementById("raft-log-clear").addEventListener("click", function() {
+        raftLogText.value = "";
+    });
+
+    // Resize handle for raft log textarea (vertical).
+    (function() {
+        var resizeBar = document.getElementById("raft-log-resize");
+        var dragging = false;
+        var startY = 0;
+        var startH = 0;
+
+        resizeBar.addEventListener("mousedown", function(e) {
+            dragging = true;
+            startY = e.clientY;
+            startH = raftLogText.offsetHeight;
+            e.preventDefault();
+        });
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            var newH = Math.max(150, Math.min(500, startH + (e.clientY - startY)));
+            raftLogText.style.height = newH + "px";
+        });
+        document.addEventListener("mouseup", function() {
+            dragging = false;
+        });
+
+        resizeBar.addEventListener("touchstart", function(e) {
+            dragging = true;
+            startY = e.touches[0].clientY;
+            startH = raftLogText.offsetHeight;
+            e.preventDefault();
+        }, { passive: false });
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var newH = Math.max(150, Math.min(500, startH + (e.touches[0].clientY - startY)));
+            raftLogText.style.height = newH + "px";
+        });
+        document.addEventListener("touchend", function() {
+            dragging = false;
+        });
+    })();
+
+    // Resize handle for raft log panel (horizontal).
+    (function() {
+        var resizeBar = document.getElementById("raft-log-resize-right");
+        var chrome = document.getElementById("raft-log-chrome");
+        var dragging = false;
+        var startX = 0;
+        var startW = 0;
+
+        resizeBar.addEventListener("mousedown", function(e) {
+            dragging = true;
+            startX = e.clientX;
+            startW = chrome.offsetWidth;
+            e.preventDefault();
+        });
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            var newW = Math.max(150, Math.min(500, startW + (e.clientX - startX)));
+            chrome.style.width = newW + "px";
+        });
+        document.addEventListener("mouseup", function() {
+            dragging = false;
+        });
+
+        resizeBar.addEventListener("touchstart", function(e) {
+            dragging = true;
+            startX = e.touches[0].clientX;
+            startW = chrome.offsetWidth;
+            e.preventDefault();
+        }, { passive: false });
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var newW = Math.max(150, Math.min(500, startW + (e.touches[0].clientX - startX)));
+            chrome.style.width = newW + "px";
+        });
+        document.addEventListener("touchend", function() {
+            dragging = false;
+        });
+    })();
+
+    // Corner resize handle (both width and height).
+    (function() {
+        var corner = document.getElementById("raft-log-resize-corner");
+        var chrome = document.getElementById("raft-log-chrome");
+        var dragging = false;
+        var startX = 0;
+        var startY = 0;
+        var startW = 0;
+        var startH = 0;
+
+        corner.addEventListener("mousedown", function(e) {
+            dragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startW = chrome.offsetWidth;
+            startH = raftLogText.offsetHeight;
+            e.preventDefault();
+        });
+        document.addEventListener("mousemove", function(e) {
+            if (!dragging) return;
+            var newW = Math.max(150, Math.min(500, startW + (e.clientX - startX)));
+            var newH = Math.max(150, Math.min(500, startH + (e.clientY - startY)));
+            chrome.style.width = newW + "px";
+            raftLogText.style.height = newH + "px";
+        });
+        document.addEventListener("mouseup", function() {
+            dragging = false;
+        });
+
+        corner.addEventListener("touchstart", function(e) {
+            dragging = true;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            startW = chrome.offsetWidth;
+            startH = raftLogText.offsetHeight;
+            e.preventDefault();
+        }, { passive: false });
+        document.addEventListener("touchmove", function(e) {
+            if (!dragging) return;
+            var newW = Math.max(150, Math.min(500, startW + (e.touches[0].clientX - startX)));
+            var newH = Math.max(150, Math.min(500, startH + (e.touches[0].clientY - startY)));
+            chrome.style.width = newW + "px";
+            raftLogText.style.height = newH + "px";
+        });
+        document.addEventListener("touchend", function() {
+            dragging = false;
+        });
+    })();
+
+    window.makeDraggable("raft-log", raftLogPanel, document.getElementById("raft-log-grab-track"));
+
+    // Dock raft-log panel under settings.
+    setTimeout(function() {
+        if (window.__dockSystem) {
+            window.__dockSystem.forceDock(["settings", "raft-log"]);
+        }
+    }, 0);
+
+    function raftLog(msg) {
+        raftLogText.value += msg + "\n";
+        raftLogText.scrollTop = raftLogText.scrollHeight;
+    }
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- Raft Node ---
+    var STATES = { FOLLOWER: 0, CANDIDATE: 1, LEADER: 2, DISCONNECTED: 3 };
+    var STATE_NAMES = ["follower", "candidate", "leader", "disconnected"];
+
+    var nodes = [];
+    var connections = [];
+
+    function Node(id, x, y) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        var speed = 1.5;
+        var angle = Math.random() * Math.PI * 2;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.baseRadius = 15 + Math.random() * 25;
+        this.radius = this.baseRadius;
+        this.targetRadius = this.baseRadius;
+        this.state = STATES.FOLLOWER;
+        this.term = 0;
+        this.votedFor = -1;
+        this.votes = 0;
+        this.leaderId = -1;
+        this.electionTimeout = randomTimeout();
+        this.electionTimer = 0;
+        this.heartbeatTimer = 0;
+        this.connected = true;
+        this.gracePeriod = 0;
+    }
+
+    function randomTimeout() {
+        return 150 + Math.random() * 150;
+    }
+
+    function initNodes() {
+        nodes = [];
+        connections = [];
+        var cx = canvas.width / 2;
+        var cy = canvas.height / 2;
+        var radius = Math.min(canvas.width, canvas.height) * 0.35;
+
+        for (var i = 0; i < settings.numNodes; i++) {
+            var angle = (i / settings.numNodes) * Math.PI * 2;
+            var jitter = (Math.random() - 0.5) * radius * 0.3;
+            var r = radius * (0.6 + Math.random() * 0.4);
+            var x = cx + Math.cos(angle) * r + jitter;
+            var y = cy + Math.sin(angle) * r + jitter;
+            nodes.push(new Node(i, x, y));
+        }
+
+        // Initial full mesh connections.
+        for (var i = 0; i < nodes.length; i++) {
+            for (var j = i + 1; j < nodes.length; j++) {
+                connections.push({
+                    from: i,
+                    to: j,
+                    active: true,
+                    strength: 1.0,
+                    healTimer: 0
+                });
+            }
+        }
+    }
+
+    initNodes();
+
+    // --- Raft Simulation ---
+    function simulate() {
+        var dt = 1;
+
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+
+            if (!node.connected) {
+                continue;
+            }
+
+            if (node.state === STATES.LEADER) {
+                node.heartbeatTimer += dt;
+                if (node.heartbeatTimer > 50) {
+                    node.heartbeatTimer = 0;
+                    sendHeartbeats(node);
+                }
+            } else {
+                node.electionTimer += dt;
+                if (node.electionTimer > node.electionTimeout) {
+                    startElection(node);
+                }
+            }
+        }
+    }
+
+    function disconnectNode(node) {
+        node.connected = false;
+        node.state = STATES.DISCONNECTED;
+        node.targetRadius = node.baseRadius;
+        node.gracePeriod = 60;
+        raftLog("node " + node.id + " disconnected");
+        spawnHalo(node);
+
+        // Deactivate connections.
+        for (var i = 0; i < connections.length; i++) {
+            var c = connections[i];
+            if (c.from === node.id || c.to === node.id) {
+                c.active = false;
+                c.healTimer = 0;
+            }
+        }
+    }
+
+    function reconnectNode(node) {
+        node.connected = true;
+        node.state = STATES.FOLLOWER;
+        node.electionTimer = 0;
+        node.electionTimeout = randomTimeout();
+        node.votedFor = -1;
+        node.leaderId = -1;
+        node.gracePeriod = 60;
+        raftLog("node " + node.id + " reconnected");
+
+        // Randomise velocity angle on rejoin.
+        var angle = Math.random() * Math.PI * 2;
+        node.vx = Math.cos(angle) * settings.speed;
+        node.vy = Math.sin(angle) * settings.speed;
+
+        // Re-activate connections with healing animation.
+        for (var i = 0; i < connections.length; i++) {
+            var c = connections[i];
+            if (c.from === node.id || c.to === node.id) {
+                var other = c.from === node.id ? nodes[c.to] : nodes[c.from];
+                if (other.connected) {
+                    c.active = true;
+                    c.strength = 0.0;
+                    c.healTimer = 0;
+                }
+            }
+        }
+    }
+
+    function startElection(node) {
+        node.state = STATES.CANDIDATE;
+        node.term++;
+        node.votedFor = node.id;
+        node.votes = 1;
+        node.electionTimer = 0;
+        node.electionTimeout = randomTimeout();
+
+        // Request votes from connected peers.
+        for (var i = 0; i < nodes.length; i++) {
+            if (i === node.id || !nodes[i].connected) continue;
+            if (!isConnected(node.id, i)) continue;
+
+            if (nodes[i].term < node.term && nodes[i].votedFor === -1) {
+                nodes[i].votedFor = node.id;
+                nodes[i].term = node.term;
+                node.votes++;
+            }
+        }
+
+        var majority = Math.floor(countConnected() / 2) + 1;
+        if (node.votes >= majority) {
+            becomeLeader(node);
+        } else {
+            node.state = STATES.FOLLOWER;
+            node.electionTimeout = randomTimeout();
+        }
+    }
+
+    var MAX_RADIUS = 50;
+
+    function becomeLeader(node) {
+        node.state = STATES.LEADER;
+        node.heartbeatTimer = 0;
+        node.targetRadius = Math.min(node.baseRadius * 1.8, MAX_RADIUS);
+        raftLog("node " + node.id + " elected leader (term " + node.term + ")");
+
+        // Demote other leaders in same term.
+        for (var i = 0; i < nodes.length; i++) {
+            if (i === node.id) continue;
+            if (nodes[i].state === STATES.LEADER) {
+                nodes[i].state = STATES.FOLLOWER;
+                nodes[i].targetRadius = nodes[i].baseRadius;
+            }
+            if (nodes[i].connected && isConnected(node.id, i)) {
+                nodes[i].leaderId = node.id;
+            }
+        }
+    }
+
+    function sendHeartbeats(leader) {
+        for (var i = 0; i < nodes.length; i++) {
+            if (i === leader.id || !nodes[i].connected) continue;
+            if (!isConnected(leader.id, i)) continue;
+            nodes[i].electionTimer = 0;
+            nodes[i].leaderId = leader.id;
+            nodes[i].term = leader.term;
+            nodes[i].votedFor = -1;
+            if (nodes[i].state === STATES.CANDIDATE) {
+                nodes[i].state = STATES.FOLLOWER;
+            }
+        }
+    }
+
+    function isConnected(a, b) {
+        for (var i = 0; i < connections.length; i++) {
+            var c = connections[i];
+            if ((c.from === a && c.to === b) || (c.from === b && c.to === a)) {
+                return c.active;
+            }
+        }
+        return false;
+    }
+
+    function countConnected() {
+        var count = 0;
+        for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].connected) count++;
+        }
+        return count;
+    }
+
+    // --- Physics: free movement, wall bounce, collisions break leader link ---
+    function updatePhysics() {
+        var pad = 20;
+        var maxSpeed = settings.speed * 2;
+
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+
+            // Clamp velocity.
+            var mag = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+            if (mag > maxSpeed) {
+                node.vx = (node.vx / mag) * maxSpeed;
+                node.vy = (node.vy / mag) * maxSpeed;
+            }
+
+            // Animate radius toward target.
+            node.radius += (node.targetRadius - node.radius) * 0.1;
+
+            // Tick down grace period.
+            if (node.gracePeriod > 0) node.gracePeriod--;
+
+            // Move.
+            // Disconnected nodes fall with gravity.
+            if (!node.connected) {
+                node.vy += 0.4;
+                node.vx *= 0.98;
+            }
+
+            node.x += node.vx;
+            node.y += node.vy;
+
+            // Wall bounce.
+            if (node.x - node.radius < pad) {
+                node.x = pad + node.radius;
+                node.vx = Math.abs(node.vx);
+            }
+            if (node.x + node.radius > canvas.width - pad) {
+                node.x = canvas.width - pad - node.radius;
+                node.vx = -Math.abs(node.vx);
+            }
+            if (node.y - node.radius < pad) {
+                node.y = pad + node.radius;
+                node.vy = Math.abs(node.vy);
+            }
+            if (node.y + node.radius > canvas.height - pad) {
+                node.y = canvas.height - pad - node.radius;
+                node.vy = -Math.abs(node.vy) * 0.5;
+                node.vx *= 0.9;
+            }
+        }
+
+        // Collision detection — elastic + break leader connection.
+        for (var i = 0; i < nodes.length; i++) {
+            for (var j = i + 1; j < nodes.length; j++) {
+                var a = nodes[i];
+                var b = nodes[j];
+                var dx = b.x - a.x;
+                var dy = b.y - a.y;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                var minDist = a.radius + b.radius + 2;
+
+                if (dist < minDist && dist > 0) {
+                    // Separate.
+                    var overlap = (minDist - dist) / 2;
+                    var nx = dx / dist;
+                    var ny = dy / dist;
+                    a.x -= nx * overlap;
+                    a.y -= ny * overlap;
+                    b.x += nx * overlap;
+                    b.y += ny * overlap;
+
+                    // Elastic collision.
+                    var dvx = a.vx - b.vx;
+                    var dvy = a.vy - b.vy;
+                    var dot = dvx * nx + dvy * ny;
+                    a.vx -= dot * nx;
+                    a.vy -= dot * ny;
+                    b.vx += dot * nx;
+                    b.vy += dot * ny;
+
+                    // If one is disconnected and the other connected, reconnect the disconnected one.
+                    // If both connected, disconnect the slower one.
+                    // Grace period prevents flicker.
+                    if (!a.connected && b.connected && a.gracePeriod <= 0) {
+                        reconnectNode(a);
+                    } else if (!b.connected && a.connected && b.gracePeriod <= 0) {
+                        reconnectNode(b);
+                    } else if (a.connected && b.connected && a.gracePeriod <= 0 && b.gracePeriod <= 0) {
+                        // Break leader connection on collision.
+                        if (a.leaderId >= 0) {
+                            a.leaderId = -1;
+                            a.electionTimer = 0;
+                            a.electionTimeout = randomTimeout();
+                            a.votedFor = -1;
+                        }
+                        if (b.leaderId >= 0) {
+                            b.leaderId = -1;
+                            b.electionTimer = 0;
+                            b.electionTimeout = randomTimeout();
+                            b.votedFor = -1;
+                        }
+
+                        // Disconnect the slower node.
+                        var magA = a.vx * a.vx + a.vy * a.vy;
+                        var magB = b.vx * b.vx + b.vy * b.vy;
+                        var slower = magA < magB ? a : b;
+                        disconnectNode(slower);
+                    }
+                }
+            }
+        }
+
+        // Heal connections over time.
+        for (var i = 0; i < connections.length; i++) {
+            var c = connections[i];
+            if (c.active && c.strength < 1.0) {
+                c.strength = Math.min(1.0, c.strength + 0.005);
+            }
+        }
+    }
+
+    // --- Message particles ---
+    var particles = [];
+    var PARTICLE_RADIUS = 3;
+    var PARTICLE_SPEED = 0.015;
+    var SPAWN_INTERVAL = 30;
+    var spawnTimer = 0;
+
+    function spawnParticles() {
+        spawnTimer++;
+        if (spawnTimer < SPAWN_INTERVAL) return;
+        spawnTimer = 0;
+
+        // Only spawn particles for leader connections (follower → leader).
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (!node.connected || node.leaderId < 0) continue;
+            var leader = nodes[node.leaderId];
+            if (!leader || !leader.connected) continue;
+            particles.push({ from: i, to: node.leaderId, t: 0 });
+        }
+    }
+
+    function updateParticles() {
+        for (var i = particles.length - 1; i >= 0; i--) {
+            var p = particles[i];
+            p.t += PARTICLE_SPEED;
+
+            // Remove if arrived or nodes disconnected.
+            if (p.t >= 1 || !nodes[p.from].connected || !nodes[p.to].connected) {
+                particles.splice(i, 1);
+            }
+        }
+    }
+
+    // --- Disconnect halos ---
+    var halos = [];
+
+    function spawnHalo(node) {
+        halos.push({ nodeId: node.id, radius: node.radius, alpha: 1.0 });
+    }
+
+    function updateHalos() {
+        for (var i = halos.length - 1; i >= 0; i--) {
+            var h = halos[i];
+            h.radius += 1.5;
+            h.alpha -= 0.02;
+            if (h.alpha <= 0) halos.splice(i, 1);
+        }
+    }
+
+    // --- Drawing ---
+    function draw() {
+        // Dark background matching the page.
+        ctx.fillStyle = "#1d1d1d";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw message particles as small white circles.
+        ctx.fillStyle = "#ffffff";
+        for (var i = 0; i < particles.length; i++) {
+            var p = particles[i];
+            var from = nodes[p.from];
+            var to = nodes[p.to];
+            var px = from.x + (to.x - from.x) * p.t;
+            var py = from.y + (to.y - from.y) * p.t;
+
+            ctx.beginPath();
+            ctx.arc(px, py, PARTICLE_RADIUS, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw connected nodes as solid white.
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (node.state === STATES.DISCONNECTED) continue;
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "#ffffff";
+            ctx.fill();
+        }
+
+        // Draw disconnected nodes as solid black.
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (node.state !== STATES.DISCONNECTED) continue;
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "#000000";
+            ctx.fill();
+        }
+
+        // Draw disconnect halos.
+        for (var i = 0; i < halos.length; i++) {
+            var h = halos[i];
+            var hNode = nodes[h.nodeId];
+            ctx.beginPath();
+            ctx.arc(hNode.x, hNode.y, h.radius, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(255, 255, 255, " + h.alpha + ")";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
+
+    // --- Main loop ---
+    function loop() {
+        if (!settings.animate) {
+            window.__homeCanvasAnimId = null;
+            return;
+        }
+
+        simulate();
+        updatePhysics();
+        spawnParticles();
+        updateParticles();
+        updateHalos();
+        draw();
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    loop();
+})();
+</script>
