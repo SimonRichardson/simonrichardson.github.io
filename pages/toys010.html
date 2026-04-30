@@ -1,0 +1,402 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>A 3D rider-camera rope. Sit atop an infinite bezier rope and ride along it like a water slide.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Segments
+                    <input type="range" id="setting-segments" min="20" max="200" value="80">
+                </label>
+                <label>
+                    Thickness
+                    <input type="range" id="setting-thickness" min="2" max="30" value="10">
+                </label>
+                <label>
+                    Sway
+                    <input type="range" id="setting-sway" min="1" max="100" value="40">
+                </label>
+                <label>
+                    Speed
+                    <input type="range" id="setting-speed" min="1" max="20" value="4">
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-autorotate" checked>
+                    Auto-rotate
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-animate" checked>
+                    Animate
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas"></canvas>
+<script>
+(function() {
+    var settingsPanel = document.getElementById("settings-panel");
+
+    var settings = {
+        segments: 80,
+        thickness: 10,
+        sway: 40,
+        speed: 4,
+        autoRotate: true,
+        animate: true
+    };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    document.getElementById("setting-segments").addEventListener("input", function() {
+        settings.segments = parseInt(this.value, 10) || 80;
+    });
+    document.getElementById("setting-thickness").addEventListener("input", function() {
+        settings.thickness = parseInt(this.value, 10) || 10;
+    });
+    document.getElementById("setting-sway").addEventListener("input", function() {
+        settings.sway = parseInt(this.value, 10) || 40;
+    });
+    document.getElementById("setting-speed").addEventListener("input", function() {
+        settings.speed = parseInt(this.value, 10) || 4;
+    });
+    document.getElementById("setting-autorotate").addEventListener("change", function() {
+        settings.autoRotate = this.checked;
+    });
+    document.getElementById("setting-animate").addEventListener("change", function() {
+        settings.animate = this.checked;
+        if (settings.animate && !window.__homeCanvasAnimId) loop();
+    });
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- 3D math ---
+    var PERSPECTIVE = 300;
+
+    function normalize(v) {
+        var len = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
+        return { x: v.x / len, y: v.y / len, z: v.z / len };
+    }
+
+    function cross(a, b) {
+        return {
+            x: a.y * b.z - a.z * b.y,
+            y: a.z * b.x - a.x * b.z,
+            z: a.x * b.y - a.y * b.x
+        };
+    }
+
+    function dot(a, b) {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    }
+
+    function sub(a, b) {
+        return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+    }
+
+    // --- Smooth noise ---
+    function noise(x, y) {
+        var n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+        return (n - Math.floor(n)) * 2 - 1;
+    }
+
+    function smoothNoise(x, y) {
+        var ix = Math.floor(x), iy = Math.floor(y);
+        var fx = x - ix, fy = y - iy;
+        fx = fx * fx * (3 - 2 * fx);
+        fy = fy * fy * (3 - 2 * fy);
+        var a = noise(ix, iy), b = noise(ix + 1, iy);
+        var c = noise(ix, iy + 1), d = noise(ix + 1, iy + 1);
+        return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+    }
+
+    // --- Infinite rope: generate control points on the fly ---
+    // The rope goes "forward" along the Z axis. Camera rides along it.
+    var SEGMENT_LENGTH = 80;
+    var controlPoints = [];
+    var cpSeed = 0;
+
+    function genControlPoint(index) {
+        var z = index * SEGMENT_LENGTH;
+        var swayAmount = settings.sway;
+        var nx = smoothNoise(index * 0.7, 0.5) * swayAmount * 2;
+        var ny = smoothNoise(0.3, index * 0.5) * swayAmount * 0.8;
+        var sx = Math.sin(index * 0.8 + 3) * swayAmount;
+        var sy = Math.cos(index * 0.6 + 1) * swayAmount * 0.5;
+        return { x: nx + sx, y: ny + sy, z: z };
+    }
+
+    // Pre-generate enough points ahead.
+    function ensureControlPoints(minIndex) {
+        while (controlPoints.length <= minIndex + 4) {
+            controlPoints.push(genControlPoint(controlPoints.length));
+        }
+    }
+
+    // Catmull-Rom to Bezier: for smooth curve through control points.
+    function catmullToBezier(p0, p1, p2, p3) {
+        return {
+            a: p1,
+            b: {
+                x: p1.x + (p2.x - p0.x) / 6,
+                y: p1.y + (p2.y - p0.y) / 6,
+                z: p1.z + (p2.z - p0.z) / 6
+            },
+            c: {
+                x: p2.x - (p3.x - p1.x) / 6,
+                y: p2.y - (p3.y - p1.y) / 6,
+                z: p2.z - (p3.z - p1.z) / 6
+            },
+            d: p2
+        };
+    }
+
+    function cubicBezier(t, a, b, c, d) {
+        var u = 1 - t, uu = u * u, uuu = uu * u;
+        var tt = t * t, ttt = tt * t;
+        return {
+            x: uuu * a.x + 3 * uu * t * b.x + 3 * u * tt * c.x + ttt * d.x,
+            y: uuu * a.y + 3 * uu * t * b.y + 3 * u * tt * c.y + ttt * d.y,
+            z: uuu * a.z + 3 * uu * t * b.z + 3 * u * tt * c.z + ttt * d.z
+        };
+    }
+
+    function cubicBezierDeriv(t, a, b, c, d) {
+        var u = 1 - t;
+        return {
+            x: 3 * u * u * (b.x - a.x) + 6 * u * t * (c.x - b.x) + 3 * t * t * (d.x - c.x),
+            y: 3 * u * u * (b.y - a.y) + 6 * u * t * (c.y - b.y) + 3 * t * t * (d.y - c.y),
+            z: 3 * u * u * (b.z - a.z) + 6 * u * t * (c.z - b.z) + 3 * t * t * (d.z - c.z)
+        };
+    }
+
+    // Get position and tangent at a global parameter (segIndex + localT).
+    function getRopePoint(globalT) {
+        var seg = Math.floor(globalT);
+        var t = globalT - seg;
+        ensureControlPoints(seg + 2);
+        var bezier = catmullToBezier(
+            controlPoints[seg], controlPoints[seg + 1],
+            controlPoints[seg + 2], controlPoints[Math.min(seg + 3, controlPoints.length - 1)]
+        );
+        return {
+            pos: cubicBezier(t, bezier.a, bezier.b, bezier.c, bezier.d),
+            tan: normalize(cubicBezierDeriv(t, bezier.a, bezier.b, bezier.c, bezier.d))
+        };
+    }
+
+    // --- Cylinder ring generation ---
+    var RING_SIDES = 10;
+
+    function getRing(center, tangent, radius) {
+        var up = { x: 0, y: 1, z: 0 };
+        if (Math.abs(tangent.y) > 0.99) up = { x: 1, y: 0, z: 0 };
+        var n1 = normalize(cross(tangent, up));
+        var n2 = normalize(cross(tangent, n1));
+        var ring = [];
+        for (var i = 0; i < RING_SIDES; i++) {
+            var angle = (i / RING_SIDES) * Math.PI * 2;
+            ring.push({
+                x: center.x + (n1.x * Math.cos(angle) + n2.x * Math.sin(angle)) * radius,
+                y: center.y + (n1.y * Math.cos(angle) + n2.y * Math.sin(angle)) * radius,
+                z: center.z + (n1.z * Math.cos(angle) + n2.z * Math.sin(angle)) * radius
+            });
+        }
+        return ring;
+    }
+
+    // --- Camera ---
+    var camT = 0; // Global parameter along rope.
+    var CAM_BEHIND = 0.15;
+    var LOOK_AHEAD = 0.5;
+    var CAM_DIST = 15;
+    var orbitAngle = -Math.PI / 2;
+
+    function getCameraMatrix() {
+        var behindPt = getRopePoint(camT - CAM_BEHIND);
+        var lookAtPt = getRopePoint(camT + LOOK_AHEAD);
+
+        var tangent = normalize(sub(lookAtPt.pos, behindPt.pos));
+        var worldUp = { x: 0, y: 1, z: 0 };
+        if (Math.abs(tangent.y) > 0.99) worldUp = { x: 1, y: 0, z: 0 };
+        var n1 = normalize(cross(tangent, worldUp));
+        var n2 = normalize(cross(tangent, n1));
+
+        var camPos = {
+            x: behindPt.pos.x + (n1.x * Math.cos(orbitAngle) + n2.x * Math.sin(orbitAngle)) * CAM_DIST,
+            y: behindPt.pos.y + (n1.y * Math.cos(orbitAngle) + n2.y * Math.sin(orbitAngle)) * CAM_DIST,
+            z: behindPt.pos.z + (n1.z * Math.cos(orbitAngle) + n2.z * Math.sin(orbitAngle)) * CAM_DIST
+        };
+
+        var forward = normalize(sub(lookAtPt.pos, camPos));
+        var right = normalize(cross(forward, worldUp));
+        var up = normalize(cross(right, forward));
+
+        return { pos: camPos, forward: forward, right: right, up: up };
+    }
+
+    function projectWorld(worldPt, cam) {
+        var rel = sub(worldPt, cam.pos);
+        var x = dot(rel, cam.right);
+        var y = dot(rel, cam.up);
+        var z = dot(rel, cam.forward);
+
+        if (z < 1) z = 1; // Clamp to avoid behind-camera.
+        var scale = PERSPECTIVE / z;
+        return {
+            sx: canvas.width / 2 + x * scale,
+            sy: canvas.height / 2 - y * scale,
+            scale: scale,
+            z: z
+        };
+    }
+
+    // --- Drawing ---
+    var time = 0;
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        var cam = getCameraMatrix();
+        var segs = settings.segments;
+        var thickness = settings.thickness;
+
+        // Draw rope from behind camera to ahead.
+        var DRAW_BEHIND = 1.5; // Segments behind camera.
+        var DRAW_AHEAD = 3.5; // Segments ahead of camera.
+        var DRAW_TOTAL = DRAW_BEHIND + DRAW_AHEAD;
+        var startT = camT - DRAW_BEHIND;
+        var stepT = DRAW_TOTAL / segs;
+
+        // Build rings along visible rope.
+        var rings = [];
+        for (var i = 0; i <= segs; i++) {
+            var gt = startT + i * stepT;
+            var rp = getRopePoint(gt);
+            var radius = thickness;
+            rings.push(getRing(rp.pos, rp.tan, radius));
+        }
+
+        // Build quads with depth.
+        var quads = [];
+        for (var i = 0; i < segs; i++) {
+            for (var j = 0; j < RING_SIDES; j++) {
+                var j2 = (j + 1) % RING_SIDES;
+                var a = rings[i][j];
+                var b = rings[i][j2];
+                var c = rings[i + 1][j2];
+                var d = rings[i + 1][j];
+
+                var pa = projectWorld(a, cam);
+                var pb = projectWorld(b, cam);
+                var pc = projectWorld(c, cam);
+                var pd = projectWorld(d, cam);
+
+                // Skip quads behind camera.
+                if (pa.z < 2 && pb.z < 2 && pc.z < 2 && pd.z < 2) continue;
+
+                var avgZ = (pa.z + pb.z + pc.z + pd.z) * 0.25;
+
+                quads.push({
+                    z: avgZ,
+                    pa: pa, pb: pb, pc: pc, pd: pd,
+                    segI: i,
+                    globalT: startT + i * stepT
+                });
+            }
+        }
+
+        // Sort back to front.
+        quads.sort(function(a, b) { return b.z - a.z; });
+
+        // Ring animation: black rings sweep back to front.
+        var RING_SPACING = 0.3;
+        var RING_WIDTH = 0.08;
+        var RING_SPEED = 0.5;
+
+        for (var i = 0; i < quads.length; i++) {
+            var q = quads[i];
+
+            // Depth fog.
+            var fogFar = DRAW_AHEAD * SEGMENT_LENGTH;
+            var depthRatio = Math.max(0, Math.min(1, 1 - q.z / fogFar));
+            var shade = 0.15 + 0.85 * depthRatio;
+
+            // Face normal lighting.
+            var e1x = q.pc.sx - q.pa.sx, e1y = q.pc.sy - q.pa.sy;
+            var e2x = q.pb.sx - q.pd.sx, e2y = q.pb.sy - q.pd.sy;
+            var faceWind = e1x * e2y - e1y * e2x;
+            shade *= faceWind > 0 ? 1.0 : 0.7;
+
+            // Black or white pattern, then apply shading.
+            var ringPhase = (q.globalT + time * RING_SPEED) % RING_SPACING;
+            if (ringPhase < 0) ringPhase += RING_SPACING;
+            var base = ringPhase < RING_WIDTH ? 0 : 255;
+
+            var r = Math.floor(base * shade);
+            var g = Math.floor(base * shade);
+            var b = Math.floor(base * shade);
+
+            ctx.beginPath();
+            ctx.moveTo(q.pa.sx, q.pa.sy);
+            ctx.lineTo(q.pb.sx, q.pb.sy);
+            ctx.lineTo(q.pc.sx, q.pc.sy);
+            ctx.lineTo(q.pd.sx, q.pd.sy);
+            ctx.closePath();
+            ctx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
+            ctx.fill();
+        }
+    }
+
+    function loop() {
+        if (!settings.animate) {
+            window.__homeCanvasAnimId = null;
+            return;
+        }
+
+        camT += settings.speed * 0.001;
+        if (settings.autoRotate) {
+            orbitAngle += 0.01;
+        }
+        time += 0.016;
+        draw();
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    // Pre-generate initial points.
+    ensureControlPoints(20);
+    camT = 2.0; // Start ahead so draw-behind doesn't underflow.
+    loop();
+})();
+</script>
