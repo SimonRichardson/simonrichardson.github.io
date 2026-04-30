@@ -1,0 +1,550 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>A 3D ribbon winding through space. Camera follows the path.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Speed
+                    <input type="range" id="setting-speed" min="1" max="20" value="4">
+                </label>
+                <label>
+                    Segments
+                    <input type="range" id="setting-segments" min="100" max="1000" step="50" value="1000">
+                </label>
+                <label>
+                    Ribbon Length
+                    <input type="range" id="setting-length" min="2" max="20" value="10">
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-animate" checked>
+                    Animate
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-cmyk">
+                    CMYK Blend
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-oscillate" checked>
+                    Oscillate Length
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas"></canvas>
+<script>
+(function() {
+    var settingsPanel = document.getElementById("settings-panel");
+
+    var settings = {
+        speed: 4,
+        segments: 1000,
+        ribbonLength: 10,
+        animate: true,
+        cmyk: false,
+        oscillate: true
+    };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    document.getElementById("setting-speed").addEventListener("input", function() {
+        settings.speed = parseInt(this.value, 10) || 4;
+    });
+    document.getElementById("setting-segments").addEventListener("input", function() {
+        settings.segments = parseInt(this.value, 10) || 1000;
+    });
+    document.getElementById("setting-length").addEventListener("input", function() {
+        settings.ribbonLength = parseInt(this.value, 10) || 10;
+    });
+    document.getElementById("setting-animate").addEventListener("change", function() {
+        settings.animate = this.checked;
+        if (settings.animate && !window.__homeCanvasAnimId) loop();
+    });
+    document.getElementById("setting-cmyk").addEventListener("change", function() {
+        settings.cmyk = this.checked;
+    });
+    document.getElementById("setting-oscillate").addEventListener("change", function() {
+        settings.oscillate = this.checked;
+    });
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- 3D math ---
+    var PERSPECTIVE = 400;
+
+    function normalize(v) {
+        var len = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
+        return { x: v.x / len, y: v.y / len, z: v.z / len };
+    }
+    function cross(a, b) {
+        return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
+    }
+    function dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+    function sub(a, b) { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
+
+    // --- Quaternions ---
+    // q = { w, x, y, z }
+    function quatFromAxisAngle(axis, angle) {
+        var half = angle * 0.5;
+        var s = Math.sin(half);
+        return { w: Math.cos(half), x: axis.x * s, y: axis.y * s, z: axis.z * s };
+    }
+
+    function quatMultiply(a, b) {
+        return {
+            w: a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z,
+            x: a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,
+            y: a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,
+            z: a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w
+        };
+    }
+
+    function quatNormalize(q) {
+        var len = Math.sqrt(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z) || 1;
+        return { w: q.w/len, x: q.x/len, y: q.y/len, z: q.z/len };
+    }
+
+    function quatSlerp(a, b, t) {
+        var cosHalf = a.w*b.w + a.x*b.x + a.y*b.y + a.z*b.z;
+        if (cosHalf < 0) {
+            b = { w: -b.w, x: -b.x, y: -b.y, z: -b.z };
+            cosHalf = -cosHalf;
+        }
+        if (cosHalf > 0.9995) {
+            // Linear interpolation for very close quaternions.
+            return quatNormalize({
+                w: a.w + (b.w - a.w) * t,
+                x: a.x + (b.x - a.x) * t,
+                y: a.y + (b.y - a.y) * t,
+                z: a.z + (b.z - a.z) * t
+            });
+        }
+        var halfAngle = Math.acos(cosHalf);
+        var sinHalf = Math.sin(halfAngle);
+        var ratioA = Math.sin((1 - t) * halfAngle) / sinHalf;
+        var ratioB = Math.sin(t * halfAngle) / sinHalf;
+        return {
+            w: a.w * ratioA + b.w * ratioB,
+            x: a.x * ratioA + b.x * ratioB,
+            y: a.y * ratioA + b.y * ratioB,
+            z: a.z * ratioA + b.z * ratioB
+        };
+    }
+
+    function quatRotateVec(q, v) {
+        // Rotate vector v by quaternion q: q * v * q^-1
+        var qv = { w: 0, x: v.x, y: v.y, z: v.z };
+        var qConj = { w: q.w, x: -q.x, y: -q.y, z: -q.z };
+        var result = quatMultiply(quatMultiply(q, qv), qConj);
+        return { x: result.x, y: result.y, z: result.z };
+    }
+
+    function quatFromLookAt(forward, up) {
+        // Build rotation quaternion from forward and up vectors.
+        var f = normalize(forward);
+        var r = normalize(cross(f, up));
+        var u = cross(r, f);
+        // Matrix to quaternion.
+        var m00 = r.x, m01 = r.y, m02 = r.z;
+        var m10 = u.x, m11 = u.y, m12 = u.z;
+        var m20 = -f.x, m21 = -f.y, m22 = -f.z;
+        var tr = m00 + m11 + m22;
+        var q;
+        if (tr > 0) {
+            var s = Math.sqrt(tr + 1) * 2;
+            q = { w: s * 0.25, x: (m12 - m21) / s, y: (m20 - m02) / s, z: (m01 - m10) / s };
+        } else if (m00 > m11 && m00 > m22) {
+            var s = Math.sqrt(1 + m00 - m11 - m22) * 2;
+            q = { w: (m12 - m21) / s, x: s * 0.25, y: (m01 + m10) / s, z: (m02 + m20) / s };
+        } else if (m11 > m22) {
+            var s = Math.sqrt(1 + m11 - m00 - m22) * 2;
+            q = { w: (m20 - m02) / s, x: (m01 + m10) / s, y: s * 0.25, z: (m12 + m21) / s };
+        } else {
+            var s = Math.sqrt(1 + m22 - m00 - m11) * 2;
+            q = { w: (m01 - m10) / s, x: (m02 + m20) / s, y: (m12 + m21) / s, z: s * 0.25 };
+        }
+        return quatNormalize(q);
+    }
+
+    function quatToAxes(q) {
+        var right = quatRotateVec(q, { x: 1, y: 0, z: 0 });
+        var up = quatRotateVec(q, { x: 0, y: 1, z: 0 });
+        var forward = quatRotateVec(q, { x: 0, y: 0, z: -1 });
+        return { right: right, up: up, forward: forward };
+    }
+
+    // --- Smooth noise ---
+    function noise(x, y) {
+        var n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+        return (n - Math.floor(n)) * 2 - 1;
+    }
+    function smoothNoise(x, y) {
+        var ix = Math.floor(x), iy = Math.floor(y);
+        var fx = x - ix, fy = y - iy;
+        fx = fx * fx * (3 - 2 * fx);
+        fy = fy * fy * (3 - 2 * fy);
+        var a = noise(ix, iy), b = noise(ix + 1, iy);
+        var c = noise(ix, iy + 1), d = noise(ix + 1, iy + 1);
+        return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+    }
+
+    // --- Infinite ribbon path via control points ---
+    // Same approach as the rope toy: path goes forward along Z, noise sways X/Y.
+    var SEGMENT_LENGTH = 80;
+    var RIBBON_WIDTH = 200;
+    var controlPoints = [];
+    var SWAY = 400; // How far the ribbon whips side to side.
+
+    function genControlPoint(index) {
+        var z = index * SEGMENT_LENGTH;
+        // Smooth noise sway in X and Y — same pattern as rope toy but bigger.
+        var nx = smoothNoise(index * 0.7, 0.5) * SWAY;
+        var ny = smoothNoise(0.3, index * 0.5) * SWAY * 0.6;
+        var sx = Math.sin(index * 0.8 + 3) * SWAY * 0.5;
+        var sy = Math.cos(index * 0.6 + 1) * SWAY * 0.4;
+        return { x: nx + sx, y: ny + sy, z: z };
+    }
+
+    function ensureControlPoints(minIndex) {
+        while (controlPoints.length <= minIndex + 4) {
+            controlPoints.push(genControlPoint(controlPoints.length));
+        }
+    }
+
+    // Catmull-Rom to cubic bezier.
+    function catmullToBezier(p0, p1, p2, p3) {
+        return {
+            a: p1,
+            b: { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6, z: p1.z + (p2.z - p0.z) / 6 },
+            c: { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6, z: p2.z - (p3.z - p1.z) / 6 },
+            d: p2
+        };
+    }
+
+    function cubicBezier(t, a, b, c, d) {
+        var u = 1 - t, uu = u * u, uuu = uu * u;
+        var tt = t * t, ttt = tt * t;
+        return {
+            x: uuu*a.x + 3*uu*t*b.x + 3*u*tt*c.x + ttt*d.x,
+            y: uuu*a.y + 3*uu*t*b.y + 3*u*tt*c.y + ttt*d.y,
+            z: uuu*a.z + 3*uu*t*b.z + 3*u*tt*c.z + ttt*d.z
+        };
+    }
+
+    function cubicBezierDeriv(t, a, b, c, d) {
+        var u = 1 - t;
+        return {
+            x: 3*u*u*(b.x-a.x) + 6*u*t*(c.x-b.x) + 3*t*t*(d.x-c.x),
+            y: 3*u*u*(b.y-a.y) + 6*u*t*(c.y-b.y) + 3*t*t*(d.y-c.y),
+            z: 3*u*u*(b.z-a.z) + 6*u*t*(c.z-b.z) + 3*t*t*(d.z-c.z)
+        };
+    }
+
+    // Cache bezier segments to avoid recomputing catmull-rom conversion.
+    var bezierCache = {};
+
+    function getBezier(seg) {
+        if (!bezierCache[seg]) {
+            ensureControlPoints(seg + 2);
+            // Catmull-Rom: curve goes from p1 to p2, using p0 and p3 as guides.
+            // For segment 'seg', the curve should go from controlPoints[seg] to controlPoints[seg+1].
+            // So p0=seg-1, p1=seg, p2=seg+1, p3=seg+2.
+            var p0 = controlPoints[Math.max(0, seg - 1)];
+            var p1 = controlPoints[seg];
+            var p2 = controlPoints[seg + 1];
+            var p3 = controlPoints[Math.min(seg + 2, controlPoints.length - 1)];
+            bezierCache[seg] = catmullToBezier(p0, p1, p2, p3);
+        }
+        return bezierCache[seg];
+    }
+
+    function getRibbonPoint(globalT) {
+        var seg = Math.floor(globalT);
+        var t = globalT - seg;
+        var bez = getBezier(seg);
+        var deriv = cubicBezierDeriv(t, bez.a, bez.b, bez.c, bez.d);
+        var speed = Math.sqrt(deriv.x*deriv.x + deriv.y*deriv.y + deriv.z*deriv.z);
+        return {
+            pos: cubicBezier(t, bez.a, bez.b, bez.c, bez.d),
+            tan: normalize(deriv),
+            speed: speed
+        };
+    }
+
+    // --- Camera ---
+    var ribbonHead = 0.0;
+    var CAM_DIST = 400;
+    var CAM_BEHIND = 3;
+    var orbitAngle = 0;
+    var smoothCamPos = null; // Smoothed camera position.
+    var smoothLookAt = null; // Smoothed look-at target.
+    var CAM_SMOOTH = 0.01; // Lower = smoother/less jerky.
+
+    function getCameraMatrix() {
+        var followT = Math.max(0.5, ribbonHead - CAM_BEHIND);
+        var followPt = getRibbonPoint(followT);
+        var headPt = getRibbonPoint(ribbonHead);
+
+        // Build local frame from tangent at follow point.
+        var tangent = normalize(sub(headPt.pos, followPt.pos));
+        var worldUp = { x: 0, y: 1, z: 0 };
+        if (Math.abs(tangent.y) > 0.99) worldUp = { x: 1, y: 0, z: 0 };
+        var n1 = normalize(cross(tangent, worldUp));
+        var n2 = normalize(cross(tangent, n1));
+
+        // Target camera position — orbit around the ribbon's path.
+        var targetPos = {
+            x: followPt.pos.x + (n1.x * Math.cos(orbitAngle) + n2.x * Math.sin(orbitAngle)) * CAM_DIST,
+            y: followPt.pos.y + (n1.y * Math.cos(orbitAngle) + n2.y * Math.sin(orbitAngle)) * CAM_DIST,
+            z: followPt.pos.z + (n1.z * Math.cos(orbitAngle) + n2.z * Math.sin(orbitAngle)) * CAM_DIST
+        };
+
+        // Smooth the camera position and look-at.
+        if (!smoothCamPos) {
+            smoothCamPos = targetPos;
+            smoothLookAt = headPt.pos;
+        } else {
+            smoothCamPos.x += (targetPos.x - smoothCamPos.x) * CAM_SMOOTH;
+            smoothCamPos.y += (targetPos.y - smoothCamPos.y) * CAM_SMOOTH;
+            smoothCamPos.z += (targetPos.z - smoothCamPos.z) * CAM_SMOOTH;
+            smoothLookAt.x += (headPt.pos.x - smoothLookAt.x) * CAM_SMOOTH;
+            smoothLookAt.y += (headPt.pos.y - smoothLookAt.y) * CAM_SMOOTH;
+            smoothLookAt.z += (headPt.pos.z - smoothLookAt.z) * CAM_SMOOTH;
+        }
+
+        var forward = normalize(sub(smoothLookAt, smoothCamPos));
+        var right = normalize(cross(forward, worldUp));
+        var up = normalize(cross(right, forward));
+        return { pos: smoothCamPos, forward: forward, right: right, up: up };
+    }
+
+    function projectWorld(pt, cam) {
+        var rel = sub(pt, cam.pos);
+        var x = dot(rel, cam.right);
+        var y = dot(rel, cam.up);
+        var z = dot(rel, cam.forward);
+        if (z < 1) z = 1;
+        var s = PERSPECTIVE / z;
+        return { sx: canvas.width / 2 + x * s, sy: canvas.height / 2 - y * s, z: z };
+    }
+
+    // --- Drawing ---
+    // CMYK colours — multiply blend creates rich overlapping patterns.
+    var CMYK = [
+        { r: 0,   g: 255, b: 255 },  // Cyan
+        { r: 255, g: 0,   b: 255 },  // Magenta
+        { r: 255, g: 255, b: 0   },  // Yellow
+        { r: 40,  g: 40,  b: 40  }   // Key (near black)
+    ];
+
+    // Rainbow colours.
+    var RAINBOW = [
+        { r: 255, g: 0,   b: 0   },  // Red
+        { r: 255, g: 127, b: 0   },  // Orange
+        { r: 255, g: 255, b: 0   },  // Yellow
+        { r: 0,   g: 200, b: 0   },  // Green
+        { r: 0,   g: 100, b: 255 },  // Blue
+        { r: 75,  g: 0,   b: 130 },  // Indigo
+        { r: 148, g: 0,   b: 211 }   // Violet
+    ];
+
+    function draw() {
+        var palette = settings.cmyk ? CMYK : RAINBOW;
+        var strandCount = palette.length;
+        var strandGapBase = RIBBON_WIDTH / strandCount;
+        var halfRW = RIBBON_WIDTH / 2;
+
+        if (settings.cmyk) {
+            // White background for multiply blending.
+            ctx.globalCompositeOperation = "source-over";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+            // Transparent background for rainbow.
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        if (ribbonHead < 0.05) return;
+
+        var cam = getCameraMatrix();
+
+        // Segments and length from settings.
+        var ribbonSegs = Math.min(settings.segments, Math.floor(ribbonHead * 100));
+        if (ribbonSegs < 2) return;
+
+        // The visible portion: from tail to head.
+        var maxLen = settings.ribbonLength;
+        if (settings.oscillate) {
+            // Oscillate between 1/3 and full length.
+            var osc = (Math.sin(time * 0.8) * 0.5 + 0.5); // 0..1
+            maxLen = settings.ribbonLength * (0.33 + osc * 0.67);
+        }
+        var tailT = Math.max(0, ribbonHead - maxLen);
+        var drawLen = ribbonHead - tailT;
+        var stepT = drawLen / ribbonSegs;
+
+        // Precompute path points once for all strands.
+        var pathPoints = new Array(ribbonSegs + 1);
+        for (var i = 0; i <= ribbonSegs; i++) {
+            var gt = tailT + i * stepT;
+            var rp = getRibbonPoint(gt);
+
+            // Breathing wave.
+            var breathe = Math.sin(gt * 2.0 + time * 3.0) * 0.08 + Math.sin(gt * 4.5 + time * 1.7) * 0.04;
+
+            // Width from speed.
+            var speedRatio = rp.speed / SEGMENT_LENGTH;
+            var widthMul = 0.3 + 1.1 * Math.min(1, speedRatio);
+            widthMul *= (1.0 + breathe);
+
+            // Tip taper.
+            var tipTaper = Math.min(1, (ribbonHead - gt) / 3.0);
+            widthMul *= tipTaper * tipTaper;
+
+            // Tail taper.
+            var tailTaper = Math.min(1, (gt - tailT) / 0.5);
+            widthMul *= tailTaper;
+
+            // Breathing Y offset.
+            var yBreathe = Math.sin(gt * 1.5 + time * 2.5) * 8 + Math.sin(gt * 3.2 + time * 1.3) * 4;
+
+            // Fade.
+            var progress = i / ribbonSegs;
+            var fade = progress < 0.15 ? progress / 0.15 : 1.0;
+
+            pathPoints[i] = {
+                px: rp.pos.x,
+                py: rp.pos.y + yBreathe,
+                pz: rp.pos.z,
+                widthMul: widthMul,
+                fade: fade
+            };
+        }
+
+        // Build quads for all strands. Side is always X-axis, so inline the offsets.
+        var quads = [];
+
+        for (var strand = 0; strand < strandCount; strand++) {
+            var col = palette[strand];
+            var strandCenter = -halfRW + strandGapBase * (strand + 0.5);
+            var strandHalf = strandGapBase / 2;
+
+            var plx, ply, plz, prx, pry, prz;
+            var hasPrev = false;
+
+            for (var i = 0; i <= ribbonSegs; i++) {
+                var pp = pathPoints[i];
+                var w = pp.widthMul;
+                var so = strandCenter * w;
+                var sh = strandHalf * w;
+
+                // Left and right points (side = X axis only).
+                var lx = pp.px + so - sh;
+                var rx = pp.px + so + sh;
+                var py = pp.py;
+                var pz = pp.pz;
+
+                if (hasPrev) {
+                    var pl = projectWorld({ x: plx, y: ply, z: plz }, cam);
+                    var pr = projectWorld({ x: prx, y: pry, z: prz }, cam);
+                    var cl = projectWorld({ x: lx, y: py, z: pz }, cam);
+                    var cr = projectWorld({ x: rx, y: py, z: pz }, cam);
+
+                    var avgZ = (pl.z + pr.z + cl.z + cr.z) * 0.25;
+                    quads.push({ pl: pl, pr: pr, cl: cl, cr: cr, z: avgZ, fade: pp.fade, col: col });
+                }
+
+                plx = lx; ply = py; plz = pz;
+                prx = rx; pry = py; prz = pz;
+                hasPrev = true;
+            }
+        }
+
+        // Sort back to front.
+        quads.sort(function(a, b) { return b.z - a.z; });
+
+        // Set blend mode based on mode.
+        if (settings.cmyk) {
+            ctx.globalCompositeOperation = "multiply";
+        } else {
+            ctx.globalCompositeOperation = "source-over";
+        }
+
+        for (var i = 0; i < quads.length; i++) {
+            var q = quads[i];
+            if (q.pl.z < 2 && q.pr.z < 2 && q.cl.z < 2 && q.cr.z < 2) continue;
+
+            var r = Math.floor(q.col.r * q.fade);
+            var g = Math.floor(q.col.g * q.fade);
+            var b = Math.floor(q.col.b * q.fade);
+
+            ctx.beginPath();
+            ctx.moveTo(q.pl.sx, q.pl.sy);
+            ctx.lineTo(q.pr.sx, q.pr.sy);
+            ctx.lineTo(q.cr.sx, q.cr.sy);
+            ctx.lineTo(q.cl.sx, q.cl.sy);
+            ctx.closePath();
+            ctx.fillStyle = "rgba(" + r + "," + g + "," + b + "," + q.fade.toFixed(2) + ")";
+            ctx.fill();
+        }
+
+        // Reset blend mode.
+        ctx.globalCompositeOperation = "source-over";
+    }
+
+    var time = 0;
+    function loop() {
+        if (!settings.animate) {
+            window.__homeCanvasAnimId = null;
+            return;
+        }
+
+        time += 0.016;
+
+        // Ribbon draws itself — head advances with whipping bursts.
+        var baseSpeed = settings.speed * 0.008;
+        var burst = 1.0 + Math.sin(time * 1.5) * 0.7 + Math.sin(time * 4.2) * 0.4;
+        ribbonHead += baseSpeed * burst;
+
+        // Camera orbits slowly around the ribbon.
+        orbitAngle += 0.008;
+
+        draw();
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    ensureControlPoints(30);
+    loop();
+})();
+</script>
