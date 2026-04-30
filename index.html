@@ -6,6 +6,7 @@
         <meta name="description" content="Simon Richardson, Software Engineer">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="style.css">
+        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='white'/><circle cx='16' cy='16' r='12' fill='black'/></svg>">
     </head>
     <body>
         <div id="modal-overlay">
@@ -328,47 +329,74 @@
             })();
 
             // Navigation tree data.
-            // Each node is either a branch (children object) or a leaf (page string).
+            // Leaf: { page: "..." }
+            // Branch: { key: node, ... }
+            // Branch with page: { page: "...", children: { key: node, ... } }
             const navData = {
-                "Toys": { 
-                    "Gravitas": { page: "pages/toys001.html" },
-                    "Ribbons": { page: "pages/toys002.html" },
-                    "Orbit": { page: "pages/toys003.html" },
-                    "Plane": { page: "pages/toys004.html" },
-                    "Terrain": { page: "pages/toys005.html" },
-                    "Waves": { page: "pages/toys006.html" },
-                    "Glyphs": { page: "pages/toys007.html" },
-                    "CMYK": { page: "pages/toys008.html" },
-                    "Raft": { page: "pages/toys009.html" },
+                "Toys": {
+                    page: "pages/toys.html",
+                    children: {
+                        "Gravitas": { page: "pages/toys001.html" },
+                        "Ribbons": { page: "pages/toys002.html" },
+                        "Orbit": { page: "pages/toys003.html" },
+                        "Plane": { page: "pages/toys004.html" },
+                        "Terrain": { page: "pages/toys005.html" },
+                        "Waves": { page: "pages/toys006.html" },
+                        "Glyphs": { page: "pages/toys007.html" },
+                        "CMYK": { page: "pages/toys008.html" },
+                        "Raft": { page: "pages/toys009.html" },
+                    }
                 },
                 "Writing": {
-                    "Loser's Game": { page: "pages/words001.html" },
+                    page: "pages/writing.html",
+                    children: {
+                        "Loser's Game": { page: "pages/words001.html" },
+                    }
                 },
                 "Projects": {
-                    "Go": {
-                        "juju": { page: "pages/juju.html" },
-                        "convoy": { page: "pages/convoy.html" },
-                        "spoke-d": { page: "pages/spoke-d.html" },
-                        "snowy": { page: "pages/snowy.html" },
-                        "coherence": { page: "pages/coherence.html" }
-                    },
-                    "Javascript": {
-                        "fantasy land": { page: "pages/fantasyland.html" }
+                    page: "pages/projects.html",
+                    children: {
+                        "Go": {
+                            page: "pages/projects-go.html",
+                            children: {
+                                "juju": { page: "pages/juju.html" },
+                                "convoy": { page: "pages/convoy.html" },
+                                "spoke-d": { page: "pages/spoke-d.html" },
+                                "snowy": { page: "pages/snowy.html" },
+                                "coherence": { page: "pages/coherence.html" }
+                            }
+                        },
+                        "Javascript": {
+                            page: "pages/projects-js.html",
+                            children: {
+                                "fantasy land": { page: "pages/fantasyland.html" }
+                            }
+                        }
                     }
                 },
                 "About": {
-                    "Profile": { page: "pages/profile.html" },
-                    "Links": { page: "pages/links.html" }
+                    page: "pages/about.html",
+                    children: {
+                        "Profile": { page: "pages/profile.html" },
+                        "Links": { page: "pages/links.html" }
+                    }
                 }
             };
 
             function isLeaf(node) {
-                return node && typeof node.page === "string";
+                return node && typeof node.page === "string" && !node.children;
             }
 
             function getChildren(node) {
-                if (!node || isLeaf(node)) return null;
+                if (!node || typeof node !== "object") return null;
+                if (node.children) return Object.keys(node.children);
+                if (isLeaf(node)) return null;
                 return Object.keys(node);
+            }
+
+            function getChild(node, key) {
+                if (node.children) return node.children[key];
+                return node[key];
             }
 
             // Build and render cascading selects.
@@ -401,8 +429,9 @@
                 // Walk the path and render child selects.
                 for (let i = 0; i < segments.length; i++) {
                     const key = segments[i];
-                    if (!current[key]) break;
-                    current = current[key];
+                    var child = getChild(current, key);
+                    if (!child) break;
+                    current = child;
                     currentPath.push(key);
 
                     // Highlight the selected option in the previous select.
@@ -413,6 +442,8 @@
                         loadPage(current.page);
                         break;
                     }
+                    // Only load branch page if this is the last segment.
+                    if (current.page && i === segments.length - 1) loadPage(current.page);
                     appendSelect(current, i + 1);
                 }
 
@@ -451,7 +482,7 @@
             function onSelectChange(sel, parentNode) {
                 const depth = parseInt(sel.dataset.depth, 10);
                 const selected = sel.value;
-                const child = parentNode[selected];
+                const child = getChild(parentNode, selected);
 
                 // Trim path to current depth and append new selection.
                 currentPath = currentPath.slice(0, depth);
@@ -468,6 +499,7 @@
                 if (isLeaf(child)) {
                     loadPage(child.page);
                 } else if (child) {
+                    if (child.page) loadPage(child.page);
                     appendSelect(child, depth + 1);
                 }
 
@@ -517,12 +549,10 @@
             // Pick a random toy page from the "Toys" branch.
             function randomHomePage() {
                 var toysNode = navData["Toys"];
-                var keys = [];
-                for (var key in toysNode) {
-                    if (toysNode[key].page) keys.push(key);
-                }
+                var children = toysNode.children;
+                var keys = Object.keys(children);
                 var chosen = keys[Math.floor(Math.random() * keys.length)];
-                return { page: toysNode[chosen].page, path: ["Toys", chosen] };
+                return { page: children[chosen].page, path: ["Toys", chosen] };
             }
 
             (function() {
