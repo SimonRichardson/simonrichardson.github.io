@@ -21,10 +21,6 @@
                     <input type="range" id="setting-spacing" min="0" max="300" value="30">
                 </label>
                 <label>
-                    Opacity
-                    <input type="range" id="setting-opacity" min="10" max="100" value="70">
-                </label>
-                <label>
                     Count
                     <input type="range" id="setting-count" min="3" max="20" value="4">
                 </label>
@@ -74,7 +70,6 @@
     var settings = {
         radius: 100,
         spacing: 30,
-        opacity: 70,
         count: 4,
         orbs: 5,
         animate: true
@@ -91,35 +86,29 @@
     var PERSPECTIVE = 800;
     var PLANE_SIZE = 600;
 
-    // --- 3D Rotation via mouse/touch drag ---
+    // --- 3D Rotation via mouse/touch drag (Y-axis only) ---
     var rotY = 0.4, rotX = -0.5;
-    var camDragging = false, lastMX = 0, lastMY = 0;
+    var camDragging = false, lastMX = 0;
 
     canvas.addEventListener("mousedown", function(e) {
         camDragging = true;
         lastMX = e.clientX;
-        lastMY = e.clientY;
     });
     document.addEventListener("mousemove", function(e) {
         if (!camDragging) return;
         rotY += (e.clientX - lastMX) * 0.005;
-        rotX += (e.clientY - lastMY) * 0.005;
         lastMX = e.clientX;
-        lastMY = e.clientY;
     });
     document.addEventListener("mouseup", function() { camDragging = false; });
 
     canvas.addEventListener("touchstart", function(e) {
         camDragging = true;
         lastMX = e.touches[0].clientX;
-        lastMY = e.touches[0].clientY;
     });
     document.addEventListener("touchmove", function(e) {
         if (!camDragging) return;
         rotY += (e.touches[0].clientX - lastMX) * 0.005;
-        rotX += (e.touches[0].clientY - lastMY) * 0.005;
         lastMX = e.touches[0].clientX;
-        lastMY = e.touches[0].clientY;
     });
     document.addEventListener("touchend", function() { camDragging = false; });
 
@@ -226,71 +215,151 @@
 
     var time = 0;
 
-    function drawOrb(worldX, worldZ, phase) {
-        var count = settings.count;
-        var radius = settings.radius;
-        var alpha = settings.opacity / 100;
-        var spacing = settings.spacing * (0.5 + 0.5 * Math.sin(time * 0.8 + phase));
+    // Offscreen canvas for the 2D texture.
+    var TEX_SIZE = 512;
+    var texCanvas = document.createElement("canvas");
+    texCanvas.width = TEX_SIZE;
+    texCanvas.height = TEX_SIZE;
+    var texCtx = texCanvas.getContext("2d");
 
-        for (var i = 0; i < count; i++) {
-            var angle = (Math.PI * 2 * i) / count + time * 0.3 + phase;
-            var ox = worldX + Math.cos(angle) * spacing;
-            var oz = worldZ + Math.sin(angle) * spacing;
+    function drawTexture() {
+        texCtx.fillStyle = "#ffffff";
+        texCtx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
 
-            // All circles sit on y=0 plane.
-            var rot = applyRotation(ox, 0, oz);
-            var p = project(rot.x, rot.y, rot.z);
+        texCtx.globalCompositeOperation = "multiply";
+        var alpha = 1.0;
 
-            if (p.scale <= 0) continue;
-            var r = radius * p.scale;
+        for (var oi = 0; oi < orbs.length; oi++) {
+            var orb = orbs[oi];
+            var count = settings.count;
+            var radius = settings.radius;
+            var spacing = settings.spacing * (0.5 + 0.5 * Math.sin(time * 0.8 + orb.phase));
 
-            var col = cmykColours[i % cmykColours.length];
-            ctx.globalAlpha = alpha;
-            ctx.beginPath();
-            ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
-            ctx.fillStyle = "rgb(" + col.r + "," + col.g + "," + col.b + ")";
-            ctx.fill();
+            // Map orb world coords to texture coords.
+            var half = PLANE_SIZE / 2;
+            var tcx = ((orb.px + half) / PLANE_SIZE) * TEX_SIZE;
+            var tcy = ((orb.pz + half) / PLANE_SIZE) * TEX_SIZE;
+            var texRadius = (radius / PLANE_SIZE) * TEX_SIZE;
+            var texSpacing = (spacing / PLANE_SIZE) * TEX_SIZE;
+
+            for (var i = 0; i < count; i++) {
+                var angle = (Math.PI * 2 * i) / count + time * 0.3 + orb.phase;
+                var x = tcx + Math.cos(angle) * texSpacing;
+                var y = tcy + Math.sin(angle) * texSpacing;
+
+                var col = cmykColours[i % cmykColours.length];
+                texCtx.globalAlpha = alpha;
+                texCtx.beginPath();
+                texCtx.arc(x, y, texRadius, 0, Math.PI * 2);
+                texCtx.fillStyle = "rgb(" + col.r + "," + col.g + "," + col.b + ")";
+                texCtx.fill();
+            }
         }
+
+        texCtx.globalCompositeOperation = "source-over";
+        texCtx.globalAlpha = 1.0;
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw the rotating white plane.
+        // Render the 2D texture.
+        drawTexture();
+
+        // Project the plane corners into 3D.
         var half = PLANE_SIZE / 2;
-        var corners = [
+        var corners3d = [
             applyRotation(-half, 0, -half),
             applyRotation(half, 0, -half),
             applyRotation(half, 0, half),
             applyRotation(-half, 0, half)
         ];
-        ctx.beginPath();
+        var projected = [];
         for (var i = 0; i < 4; i++) {
-            var p = project(corners[i].x, corners[i].y, corners[i].z);
-            if (i === 0) ctx.moveTo(p.sx, p.sy);
-            else ctx.lineTo(p.sx, p.sy);
+            projected.push(project(corners3d[i].x, corners3d[i].y, corners3d[i].z));
         }
+
+        // Draw textured plane using subdivided grid for perspective-correct mapping.
+        var SUBDIVS = 16;
+        var BLEED = 0.5; // Pixel bleed to close seams.
+        for (var row = 0; row < SUBDIVS; row++) {
+            for (var col = 0; col < SUBDIVS; col++) {
+                var u0 = col / SUBDIVS, u1 = (col + 1) / SUBDIVS;
+                var v0 = row / SUBDIVS, v1 = (row + 1) / SUBDIVS;
+
+                // Bilinear interpolation in 3D space.
+                var points = [
+                    [u0, v0], [u1, v0], [u1, v1], [u0, v1]
+                ];
+                var screenPts = [];
+                for (var pi = 0; pi < 4; pi++) {
+                    var u = points[pi][0], v = points[pi][1];
+                    var wx = -half + u * PLANE_SIZE;
+                    var wz = -half + v * PLANE_SIZE;
+                    var rot = applyRotation(wx, 0, wz);
+                    screenPts.push(project(rot.x, rot.y, rot.z));
+                }
+
+                // Source rect from texture.
+                var sx = u0 * TEX_SIZE, sy = v0 * TEX_SIZE;
+                var sw = (u1 - u0) * TEX_SIZE, sh = (v1 - v0) * TEX_SIZE;
+
+                // Use a transform to map the texture quad.
+                // Expand clip path slightly to close seams.
+                var cx = (screenPts[0].sx + screenPts[1].sx + screenPts[2].sx + screenPts[3].sx) / 4;
+                var cy = (screenPts[0].sy + screenPts[1].sy + screenPts[2].sy + screenPts[3].sy) / 4;
+                ctx.save();
+                ctx.beginPath();
+                for (var pi = 0; pi < 4; pi++) {
+                    var ex = screenPts[pi].sx + (screenPts[pi].sx - cx) / Math.max(1, Math.sqrt((screenPts[pi].sx - cx) * (screenPts[pi].sx - cx) + (screenPts[pi].sy - cy) * (screenPts[pi].sy - cy))) * BLEED;
+                    var ey = screenPts[pi].sy + (screenPts[pi].sy - cy) / Math.max(1, Math.sqrt((screenPts[pi].sx - cx) * (screenPts[pi].sx - cx) + (screenPts[pi].sy - cy) * (screenPts[pi].sy - cy))) * BLEED;
+                    if (pi === 0) ctx.moveTo(ex, ey);
+                    else ctx.lineTo(ex, ey);
+                }
+                ctx.closePath();
+                ctx.clip();
+
+                // Affine transform from texture to screen (using first triangle).
+                var dx1 = screenPts[1].sx - screenPts[0].sx;
+                var dy1 = screenPts[1].sy - screenPts[0].sy;
+                var dx2 = screenPts[3].sx - screenPts[0].sx;
+                var dy2 = screenPts[3].sy - screenPts[0].sy;
+
+                ctx.setTransform(
+                    dx1 / sw, dy1 / sw,
+                    dx2 / sh, dy2 / sh,
+                    screenPts[0].sx - (dx1 / sw) * sx - (dx2 / sh) * sy,
+                    screenPts[0].sy - (dy1 / sw) * sx - (dy2 / sh) * sy
+                );
+                ctx.drawImage(texCanvas, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+        // Rope around the edge, raised above the plane.
+        var ropeHeight = 20;
+        var ropeCorners = [
+            { x: -half, y: ropeHeight, z: -half },
+            { x:  half, y: ropeHeight, z: -half },
+            { x:  half, y: ropeHeight, z:  half },
+            { x: -half, y: ropeHeight, z:  half }
+        ];
+        var ropeProjected = [];
+        for (var ri = 0; ri < 4; ri++) {
+            var r = applyRotation(ropeCorners[ri].x, ropeCorners[ri].y, ropeCorners[ri].z);
+            ropeProjected.push(project(r.x, r.y, r.z));
+        }
+        ctx.beginPath();
+        ctx.moveTo(ropeProjected[0].sx, ropeProjected[0].sy);
+        ctx.lineTo(ropeProjected[1].sx, ropeProjected[1].sy);
+        ctx.lineTo(ropeProjected[2].sx, ropeProjected[2].sy);
+        ctx.lineTo(ropeProjected[3].sx, ropeProjected[3].sy);
         ctx.closePath();
-        ctx.fillStyle = "#ffffff";
-        ctx.fill();
-
-        ctx.globalCompositeOperation = "multiply";
-
-        // Sort orbs by depth for correct overlap.
-        var sorted = [];
-        for (var i = 0; i < orbs.length; i++) {
-            var rot = applyRotation(orbs[i].px, 0, orbs[i].pz);
-            sorted.push({ idx: i, z: rot.z });
-        }
-        sorted.sort(function(a, b) { return b.z - a.z; });
-
-        for (var i = 0; i < sorted.length; i++) {
-            var orb = orbs[sorted[i].idx];
-            drawOrb(orb.px, orb.pz, orb.phase);
-        }
-
-        ctx.globalCompositeOperation = "source-over";
-        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.stroke();
     }
 
     function loop() {
@@ -309,9 +378,6 @@
     });
     document.getElementById("setting-spacing").addEventListener("input", function() {
         settings.spacing = parseInt(this.value);
-    });
-    document.getElementById("setting-opacity").addEventListener("input", function() {
-        settings.opacity = parseInt(this.value);
     });
     document.getElementById("setting-count").addEventListener("input", function() {
         settings.count = parseInt(this.value);

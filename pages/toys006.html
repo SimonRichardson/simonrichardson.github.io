@@ -112,21 +112,17 @@
 
     // --- Rotation via mouse/touch drag ---
     var rotY = 0.4, rotX = -0.6;
-    var camDragging = false, lastMX = 0, lastMY = 0;
+    var camDragging = false, lastMX = 0;
 
     canvas.addEventListener("mousedown", function(e) {
         camDragging = true;
         lastMX = e.clientX;
-        lastMY = e.clientY;
     });
 
     document.addEventListener("mousemove", function(e) {
         if (!camDragging) return;
         rotY += (e.clientX - lastMX) * 0.005;
-        rotX += (e.clientY - lastMY) * 0.005;
-        rotX = Math.max(-1.2, Math.min(0.2, rotX));
         lastMX = e.clientX;
-        lastMY = e.clientY;
     });
 
     document.addEventListener("mouseup", function() {
@@ -136,16 +132,12 @@
     canvas.addEventListener("touchstart", function(e) {
         camDragging = true;
         lastMX = e.touches[0].clientX;
-        lastMY = e.touches[0].clientY;
     });
 
     document.addEventListener("touchmove", function(e) {
         if (!camDragging) return;
         rotY += (e.touches[0].clientX - lastMX) * 0.005;
-        rotX += (e.touches[0].clientY - lastMY) * 0.005;
-        rotX = Math.max(-1.2, Math.min(0.2, rotX));
         lastMX = e.touches[0].clientX;
-        lastMY = e.touches[0].clientY;
     });
 
     document.addEventListener("touchend", function() {
@@ -245,6 +237,29 @@
         ctx.closePath();
         ctx.fillStyle = "#000000";
         ctx.fill();
+
+        // Rope around the edge, raised above the plane.
+        var ropeHeight = 40;
+        var ropeCorners = [
+            { x: -PLANE_SIZE, y: ropeHeight, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ropeHeight, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ropeHeight, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: ropeHeight, z:  PLANE_SIZE }
+        ];
+        var ropeProjected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(ropeCorners[i].x, ropeCorners[i].y, ropeCorners[i].z);
+            ropeProjected.push(project(r.x, r.y, r.z));
+        }
+        ctx.beginPath();
+        ctx.moveTo(ropeProjected[0].sx, ropeProjected[0].sy);
+        ctx.lineTo(ropeProjected[1].sx, ropeProjected[1].sy);
+        ctx.lineTo(ropeProjected[2].sx, ropeProjected[2].sy);
+        ctx.lineTo(ropeProjected[3].sx, ropeProjected[3].sy);
+        ctx.closePath();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.stroke();
     }
 
     function drawWaves() {
