@@ -1,0 +1,329 @@
+<div id="settings-panel" class="win-window">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>CMYK circles on a plane with subtractive colour blending.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Radius
+                    <input type="range" id="setting-radius" min="20" max="300" value="120">
+                </label>
+                <label>
+                    Spacing
+                    <input type="range" id="setting-spacing" min="0" max="300" value="30">
+                </label>
+                <label>
+                    Opacity
+                    <input type="range" id="setting-opacity" min="10" max="100" value="70">
+                </label>
+                <label>
+                    Count
+                    <input type="range" id="setting-count" min="3" max="20" value="4">
+                </label>
+                <label>
+                    Orbs
+                    <input type="range" id="setting-orbs" min="1" max="12" value="5">
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-animate" checked>
+                    Animate
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    var settingsPanel = document.getElementById("settings-panel");
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+        if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 0);
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    legends.forEach(function(legend) {
+        legend.addEventListener("click", function() {
+            legend.parentElement.classList.toggle("collapsed");
+        });
+    });
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    var settings = {
+        radius: 100,
+        spacing: 30,
+        opacity: 70,
+        count: 4,
+        orbs: 5,
+        animate: true
+    };
+
+    // CMYK base colours (subtractive primaries as RGB for screen).
+    var cmykColours = [
+        { r: 0, g: 255, b: 255 },   // Cyan
+        { r: 255, g: 0, b: 255 },   // Magenta
+        { r: 255, g: 255, b: 0 },   // Yellow
+        { r: 0, g: 0, b: 0 }        // Key (Black)
+    ];
+
+    var PERSPECTIVE = 800;
+    var PLANE_SIZE = 600;
+
+    // --- 3D Rotation via mouse/touch drag ---
+    var rotY = 0.4, rotX = -0.5;
+    var camDragging = false, lastMX = 0, lastMY = 0;
+
+    canvas.addEventListener("mousedown", function(e) {
+        camDragging = true;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+    document.addEventListener("mousemove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.clientX - lastMX) * 0.005;
+        rotX += (e.clientY - lastMY) * 0.005;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+    document.addEventListener("mouseup", function() { camDragging = false; });
+
+    canvas.addEventListener("touchstart", function(e) {
+        camDragging = true;
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+    document.addEventListener("touchmove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.touches[0].clientX - lastMX) * 0.005;
+        rotX += (e.touches[0].clientY - lastMY) * 0.005;
+        lastMX = e.touches[0].clientX;
+        lastMY = e.touches[0].clientY;
+    });
+    document.addEventListener("touchend", function() { camDragging = false; });
+
+    function applyRotation(x, y, z) {
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
+    }
+
+    function project(x, y, z) {
+        var s = PERSPECTIVE / (PERSPECTIVE + z);
+        return { sx: canvas.width / 2 + x * s, sy: canvas.height / 2 - y * s, scale: s };
+    }
+
+    // Orbs live on the XZ plane (y=0) in world space.
+    var orbs = [];
+    function initOrbs() {
+        orbs = [];
+        var minDist = settings.radius * 2 + settings.spacing;
+        var half = PLANE_SIZE / 2;
+        for (var i = 0; i < settings.orbs; i++) {
+            var placed = false;
+            for (var attempt = 0; attempt < 200; attempt++) {
+                var px = (Math.random() - 0.5) * PLANE_SIZE;
+                var pz = (Math.random() - 0.5) * PLANE_SIZE;
+                var overlap = false;
+                for (var j = 0; j < orbs.length; j++) {
+                    var dx = px - orbs[j].px;
+                    var dz = pz - orbs[j].pz;
+                    if (Math.sqrt(dx * dx + dz * dz) < minDist) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                if (!overlap) {
+                    var angle = Math.random() * Math.PI * 2;
+                    var speed = 0.4 + Math.random() * 0.6;
+                    orbs.push({
+                        px: px,
+                        pz: pz,
+                        vx: Math.cos(angle) * speed,
+                        vz: Math.sin(angle) * speed,
+                        phase: Math.random() * Math.PI * 2
+                    });
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) break;
+        }
+    }
+    initOrbs();
+
+    function updateOrbs() {
+        var minDist = settings.radius * 2 + settings.spacing;
+        var half = PLANE_SIZE / 2;
+
+        for (var i = 0; i < orbs.length; i++) {
+            orbs[i].px += orbs[i].vx;
+            orbs[i].pz += orbs[i].vz;
+        }
+
+        // Bounce off plane edges.
+        for (var i = 0; i < orbs.length; i++) {
+            var o = orbs[i];
+            var r = settings.radius;
+            if (o.px - r < -half) { o.px = -half + r; o.vx = Math.abs(o.vx); }
+            if (o.px + r > half) { o.px = half - r; o.vx = -Math.abs(o.vx); }
+            if (o.pz - r < -half) { o.pz = -half + r; o.vz = Math.abs(o.vz); }
+            if (o.pz + r > half) { o.pz = half - r; o.vz = -Math.abs(o.vz); }
+        }
+
+        // Bounce off each other.
+        for (var i = 0; i < orbs.length; i++) {
+            for (var j = i + 1; j < orbs.length; j++) {
+                var dx = orbs[j].px - orbs[i].px;
+                var dz = orbs[j].pz - orbs[i].pz;
+                var dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < minDist && dist > 0) {
+                    var nx = dx / dist;
+                    var nz = dz / dist;
+                    var dvx = orbs[i].vx - orbs[j].vx;
+                    var dvz = orbs[i].vz - orbs[j].vz;
+                    var dot = dvx * nx + dvz * nz;
+                    if (dot > 0) {
+                        orbs[i].vx -= dot * nx;
+                        orbs[i].vz -= dot * nz;
+                        orbs[j].vx += dot * nx;
+                        orbs[j].vz += dot * nz;
+                    }
+                    var ov = minDist - dist;
+                    orbs[i].px -= nx * ov * 0.5;
+                    orbs[i].pz -= nz * ov * 0.5;
+                    orbs[j].px += nx * ov * 0.5;
+                    orbs[j].pz += nz * ov * 0.5;
+                }
+            }
+        }
+    }
+
+    var time = 0;
+
+    function drawOrb(worldX, worldZ, phase) {
+        var count = settings.count;
+        var radius = settings.radius;
+        var alpha = settings.opacity / 100;
+        var spacing = settings.spacing * (0.5 + 0.5 * Math.sin(time * 0.8 + phase));
+
+        for (var i = 0; i < count; i++) {
+            var angle = (Math.PI * 2 * i) / count + time * 0.3 + phase;
+            var ox = worldX + Math.cos(angle) * spacing;
+            var oz = worldZ + Math.sin(angle) * spacing;
+
+            // All circles sit on y=0 plane.
+            var rot = applyRotation(ox, 0, oz);
+            var p = project(rot.x, rot.y, rot.z);
+
+            if (p.scale <= 0) continue;
+            var r = radius * p.scale;
+
+            var col = cmykColours[i % cmykColours.length];
+            ctx.globalAlpha = alpha;
+            ctx.beginPath();
+            ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+            ctx.fillStyle = "rgb(" + col.r + "," + col.g + "," + col.b + ")";
+            ctx.fill();
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw the rotating white plane.
+        var half = PLANE_SIZE / 2;
+        var corners = [
+            applyRotation(-half, 0, -half),
+            applyRotation(half, 0, -half),
+            applyRotation(half, 0, half),
+            applyRotation(-half, 0, half)
+        ];
+        ctx.beginPath();
+        for (var i = 0; i < 4; i++) {
+            var p = project(corners[i].x, corners[i].y, corners[i].z);
+            if (i === 0) ctx.moveTo(p.sx, p.sy);
+            else ctx.lineTo(p.sx, p.sy);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+
+        ctx.globalCompositeOperation = "multiply";
+
+        // Sort orbs by depth for correct overlap.
+        var sorted = [];
+        for (var i = 0; i < orbs.length; i++) {
+            var rot = applyRotation(orbs[i].px, 0, orbs[i].pz);
+            sorted.push({ idx: i, z: rot.z });
+        }
+        sorted.sort(function(a, b) { return b.z - a.z; });
+
+        for (var i = 0; i < sorted.length; i++) {
+            var orb = orbs[sorted[i].idx];
+            drawOrb(orb.px, orb.pz, orb.phase);
+        }
+
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1.0;
+    }
+
+    function loop() {
+        if (settings.animate) {
+            time += 0.005;
+            updateOrbs();
+            if (!camDragging) rotY += 0.001;
+        }
+        draw();
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    // Settings bindings.
+    document.getElementById("setting-radius").addEventListener("input", function() {
+        settings.radius = parseInt(this.value);
+    });
+    document.getElementById("setting-spacing").addEventListener("input", function() {
+        settings.spacing = parseInt(this.value);
+    });
+    document.getElementById("setting-opacity").addEventListener("input", function() {
+        settings.opacity = parseInt(this.value);
+    });
+    document.getElementById("setting-count").addEventListener("input", function() {
+        settings.count = parseInt(this.value);
+    });
+    document.getElementById("setting-orbs").addEventListener("input", function() {
+        settings.orbs = parseInt(this.value);
+        initOrbs();
+    });
+    document.getElementById("setting-animate").addEventListener("change", function() {
+        settings.animate = this.checked;
+    });
+
+    loop();
+})();
+</script>
