@@ -20,6 +20,10 @@
                     Scale
                     <input type="range" id="setting-scale" min="20" max="200" value="80">
                 </label>
+                <label>
+                    Font .ttf
+                    <input type="file" id="setting-font" accept=".ttf">
+                </label>
                 <button id="setting-apply">Apply</button>
                 <button id="setting-save">Save Image</button>
             </div>
@@ -64,6 +68,32 @@
         link.download = "canvas.png";
         link.href = document.getElementById("home-canvas").toDataURL("image/png");
         link.click();
+    });
+
+    document.getElementById("setting-font").addEventListener("change", function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith(".ttf")) {
+            window.showModal("Please select a .ttf file.");
+            e.target.value = "";
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            window.showModal("File must be under 10MB.");
+            e.target.value = "";
+            return;
+        }
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+            var data = new Uint8Array(ev.target.result);
+            try {
+                glyphs = parseTTF(data);
+                initLetters();
+            } catch (err) {
+                window.showModal("Failed to parse font: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
     });
 
     window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));

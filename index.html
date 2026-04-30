@@ -10,6 +10,16 @@
     <body>
         <div id="background-content"></div>
 
+        <div id="modal-overlay">
+            <div class="modal-box">
+                <div class="modal-title">Alert</div>
+                <div id="modal-message"></div>
+                <div class="modal-actions">
+                    <button id="modal-ok">OK</button>
+                </div>
+            </div>
+        </div>
+
         <footer id="bottom-bar">
             <span>Simon Richardson &copy; 2026</span>
             <span class="bar-links">
@@ -68,6 +78,17 @@
 
 
         <script>
+            // --- Modal system ---
+            window.showModal = function(msg) {
+                var overlay = document.getElementById("modal-overlay");
+                var message = document.getElementById("modal-message");
+                message.textContent = msg;
+                overlay.style.display = "flex";
+            };
+            document.getElementById("modal-ok").addEventListener("click", function() {
+                document.getElementById("modal-overlay").style.display = "none";
+            });
+
             // --- Window docking system ---
             // Any window can dock with any other window, forming a vertical chain.
             window.__dockSystem = (function() {
@@ -480,11 +501,12 @@
             // Pick a random toy page from the "Toys" branch.
             function randomHomePage() {
                 var toysNode = navData["Toys"];
-                var pages = [];
+                var keys = [];
                 for (var key in toysNode) {
-                    if (toysNode[key].page) pages.push(toysNode[key].page);
+                    if (toysNode[key].page) keys.push(key);
                 }
-                return pages[Math.floor(Math.random() * pages.length)];
+                var chosen = keys[Math.floor(Math.random() * keys.length)];
+                return { page: toysNode[chosen].page, path: ["Toys", chosen] };
             }
 
             (function() {
@@ -492,8 +514,9 @@
                 if (hash) {
                     renderSelects(hash.split("/"));
                 } else {
-                    renderSelects();
-                    loadPage(randomHomePage());
+                    var home = randomHomePage();
+                    renderSelects(home.path);
+                    loadPage(home.page);
                 }
             })();
 
@@ -502,8 +525,9 @@
                 if (hash) {
                     renderSelects(hash.split("/"));
                 } else {
-                    renderSelects();
-                    loadPage(randomHomePage());
+                    var home = randomHomePage();
+                    renderSelects(home.path);
+                    loadPage(home.page);
                 }
             });
 
@@ -563,6 +587,7 @@
                 for (var id in values) {
                     var inp = document.getElementById(id);
                     if (!inp) continue;
+                    if (inp.type === "file") continue;
                     if (inp.type === "checkbox") {
                         inp.checked = values[id];
                     } else {
@@ -585,6 +610,7 @@
                 var values = {};
                 for (var i = 0; i < inputs.length; i++) {
                     var inp = inputs[i];
+                    if (inp.type === "file") continue;
                     if (inp.type === "checkbox") {
                         values[inp.id] = inp.checked;
                     } else {
