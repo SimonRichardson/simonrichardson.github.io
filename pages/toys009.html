@@ -8,7 +8,7 @@
         <div id="settings-body" class="win-body">
             <div class="settings-fieldset collapsed">
                 <div class="settings-legend">About</div>
-                <p>Raft consensus simulation. Nodes elect leaders, replicate logs, and self-heal when connections drop.</p>
+                <p>Raft consensus simulation. Nodes elect leaders, replicate logs, and self-heal when connections drop. 3D arena with Y-axis rotation.</p>
             </div>
             <div class="settings-fieldset">
                 <div class="settings-legend">Controls</div>
@@ -19,6 +19,10 @@
                 <label>
                     Speed
                     <input type="range" id="setting-stiffness" min="1" max="100" value="30">
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-autorotate" checked>
+                    Auto-rotate
                 </label>
                 <label>
                     <input type="checkbox" id="setting-animate" checked>
@@ -60,6 +64,7 @@
     var settings = {
         numNodes: 13,
         speed: 1.5,
+        autoRotate: true,
         animate: true
     };
 
@@ -85,13 +90,16 @@
     });
     document.getElementById("setting-stiffness").addEventListener("input", function() {
         var newSpeed = parseFloat(this.value) / 20;
-        // Scale all velocities to new speed.
         for (var i = 0; i < nodes.length; i++) {
-            var mag = Math.sqrt(nodes[i].vx * nodes[i].vx + nodes[i].vy * nodes[i].vy) || 1;
+            var mag = Math.sqrt(nodes[i].vx * nodes[i].vx + nodes[i].vy * nodes[i].vy + nodes[i].vz * nodes[i].vz) || 1;
             nodes[i].vx = (nodes[i].vx / mag) * newSpeed;
             nodes[i].vy = (nodes[i].vy / mag) * newSpeed;
+            nodes[i].vz = (nodes[i].vz / mag) * newSpeed;
         }
         settings.speed = newSpeed;
+    });
+    document.getElementById("setting-autorotate").addEventListener("change", function() {
+        settings.autoRotate = this.checked;
     });
     document.getElementById("setting-animate").addEventListener("change", function() {
         settings.animate = this.checked;
@@ -272,21 +280,84 @@
     resize();
     window.addEventListener("resize", resize);
 
-    // --- Raft Node ---
+    // --- 3D parameters ---
+    var PERSPECTIVE = 800;
+    var PLANE_SIZE = 250;
+    var GRAVITY = 0.15;
+    var FLOAT_FORCE = 0.08;
+    var FLOAT_HEIGHT = 120;
+    var BOUNCE_3D = 0.85;
+    var DAMPING = 0.999;
+    var FRICTION = 0.99;
+    var ROPE_HEIGHT = 40;
+
+    // --- Camera rotation (Y-axis only) ---
+    var rotY = 0.4, rotX = -0.5;
+    var camDragging = false, lastMX = 0;
+
+    canvas.addEventListener("mousedown", function(e) {
+        camDragging = true;
+        lastMX = e.clientX;
+    });
+    document.addEventListener("mousemove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.clientX - lastMX) * 0.005;
+        lastMX = e.clientX;
+    });
+    document.addEventListener("mouseup", function() {
+        camDragging = false;
+    });
+
+    canvas.addEventListener("touchstart", function(e) {
+        camDragging = true;
+        lastMX = e.touches[0].clientX;
+    });
+    document.addEventListener("touchmove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.touches[0].clientX - lastMX) * 0.005;
+        lastMX = e.touches[0].clientX;
+    });
+    document.addEventListener("touchend", function() {
+        camDragging = false;
+    });
+
+    function applyRotation(x, y, z) {
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
+    }
+
+    function project(x, y, z) {
+        var scale = PERSPECTIVE / (PERSPECTIVE + z);
+        return {
+            sx: canvas.width / 2 + x * scale,
+            sy: canvas.height / 2 - y * scale,
+            scale: scale
+        };
+    }
+
+    // --- Raft Node (3D) ---
     var STATES = { FOLLOWER: 0, CANDIDATE: 1, LEADER: 2, DISCONNECTED: 3 };
     var STATE_NAMES = ["follower", "candidate", "leader", "disconnected"];
 
     var nodes = [];
     var connections = [];
 
-    function Node(id, x, y) {
+    function Node(id, x, y, z) {
         this.id = id;
         this.x = x;
         this.y = y;
+        this.z = z;
         var speed = 1.5;
-        var angle = Math.random() * Math.PI * 2;
-        this.vx = Math.cos(angle) * speed;
-        this.vy = Math.sin(angle) * speed;
+        var theta = Math.random() * Math.PI * 2;
+        var phi = Math.random() * Math.PI * 0.5;
+        this.vx = Math.cos(theta) * speed;
+        this.vy = Math.random() * 2;
+        this.vz = Math.sin(theta) * speed;
         this.baseRadius = 15 + Math.random() * 25;
         this.radius = this.baseRadius;
         this.targetRadius = this.baseRadius;
@@ -309,17 +380,14 @@
     function initNodes() {
         nodes = [];
         connections = [];
-        var cx = canvas.width / 2;
-        var cy = canvas.height / 2;
-        var radius = Math.min(canvas.width, canvas.height) * 0.35;
 
         for (var i = 0; i < settings.numNodes; i++) {
             var angle = (i / settings.numNodes) * Math.PI * 2;
-            var jitter = (Math.random() - 0.5) * radius * 0.3;
-            var r = radius * (0.6 + Math.random() * 0.4);
-            var x = cx + Math.cos(angle) * r + jitter;
-            var y = cy + Math.sin(angle) * r + jitter;
-            nodes.push(new Node(i, x, y));
+            var r = PLANE_SIZE * (0.3 + Math.random() * 0.5);
+            var x = Math.cos(angle) * r;
+            var y = 15 + Math.random() * 100;
+            var z = Math.sin(angle) * r;
+            nodes.push(new Node(i, x, y, z));
         }
 
         // Initial full mesh connections.
@@ -341,13 +409,9 @@
     // --- Raft Simulation ---
     function simulate() {
         var dt = 1;
-
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
-
-            if (!node.connected) {
-                continue;
-            }
+            if (!node.connected) continue;
 
             if (node.state === STATES.LEADER) {
                 node.heartbeatTimer += dt;
@@ -372,7 +436,6 @@
         raftLog("node " + node.id + " disconnected");
         spawnHalo(node);
 
-        // Deactivate connections.
         for (var i = 0; i < connections.length; i++) {
             var c = connections[i];
             if (c.from === node.id || c.to === node.id) {
@@ -392,12 +455,11 @@
         node.gracePeriod = 60;
         raftLog("node " + node.id + " reconnected");
 
-        // Randomise velocity angle on rejoin.
         var angle = Math.random() * Math.PI * 2;
         node.vx = Math.cos(angle) * settings.speed;
-        node.vy = Math.sin(angle) * settings.speed;
+        node.vy = Math.random() * 2;
+        node.vz = Math.sin(angle) * settings.speed;
 
-        // Re-activate connections with healing animation.
         for (var i = 0; i < connections.length; i++) {
             var c = connections[i];
             if (c.from === node.id || c.to === node.id) {
@@ -419,11 +481,9 @@
         node.electionTimer = 0;
         node.electionTimeout = randomTimeout();
 
-        // Request votes from connected peers.
         for (var i = 0; i < nodes.length; i++) {
             if (i === node.id || !nodes[i].connected) continue;
             if (!isConnected(node.id, i)) continue;
-
             if (nodes[i].term < node.term && nodes[i].votedFor === -1) {
                 nodes[i].votedFor = node.id;
                 nodes[i].term = node.term;
@@ -448,7 +508,6 @@
         node.targetRadius = Math.min(node.baseRadius * 1.8, MAX_RADIUS);
         raftLog("node " + node.id + " elected leader (term " + node.term + ")");
 
-        // Demote other leaders in same term.
         for (var i = 0; i < nodes.length; i++) {
             if (i === node.id) continue;
             if (nodes[i].state === STATES.LEADER) {
@@ -493,19 +552,21 @@
         return count;
     }
 
-    // --- Physics: free movement, wall bounce, collisions break leader link ---
+    // --- 3D Physics ---
     function updatePhysics() {
-        var pad = 20;
         var maxSpeed = settings.speed * 2;
+        var limit = PLANE_SIZE;
+        var maxHeight = PLANE_SIZE * 1.5;
 
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
 
             // Clamp velocity.
-            var mag = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+            var mag = Math.sqrt(node.vx * node.vx + node.vy * node.vy + node.vz * node.vz);
             if (mag > maxSpeed) {
                 node.vx = (node.vx / mag) * maxSpeed;
                 node.vy = (node.vy / mag) * maxSpeed;
+                node.vz = (node.vz / mag) * maxSpeed;
             }
 
             // Animate radius toward target.
@@ -514,74 +575,110 @@
             // Tick down grace period.
             if (node.gracePeriod > 0) node.gracePeriod--;
 
-            // Move.
-            // Disconnected nodes fall with gravity.
+            // Gravity / floating.
             if (!node.connected) {
-                node.vy += 0.4;
+                // Disconnected: heavy gravity, fall to floor.
+                node.vy -= GRAVITY * 2;
                 node.vx *= 0.98;
+                node.vz *= 0.98;
+            } else if (node.leaderId >= 0 || node.state === STATES.LEADER) {
+                // Connected with leader: float upward, capped at FLOAT_HEIGHT.
+                if (node.y < FLOAT_HEIGHT) {
+                    node.vy += FLOAT_FORCE;
+                } else {
+                    node.vy *= 0.9;
+                    if (node.y > FLOAT_HEIGHT) {
+                        node.vy -= GRAVITY * 0.5;
+                    }
+                }
+            } else {
+                // Connected but no leader yet: float to half height.
+                var halfFloat = FLOAT_HEIGHT * 0.5;
+                if (node.y < halfFloat) {
+                    node.vy += FLOAT_FORCE * 0.6;
+                } else {
+                    node.vy *= 0.9;
+                    if (node.y > halfFloat) {
+                        node.vy -= GRAVITY * 0.3;
+                    }
+                }
             }
 
+            // Damping.
+            node.vx *= DAMPING;
+            node.vy *= DAMPING;
+            node.vz *= DAMPING;
+
+            // Move.
             node.x += node.vx;
             node.y += node.vy;
+            node.z += node.vz;
 
-            // Wall bounce.
-            if (node.x - node.radius < pad) {
-                node.x = pad + node.radius;
-                node.vx = Math.abs(node.vx);
+            // Bounce off plane floor (y = 0).
+            if (node.y < node.radius) {
+                node.y = node.radius;
+                node.vy = Math.abs(node.vy) * BOUNCE_3D;
+                node.vx *= FRICTION;
+                node.vz *= FRICTION;
             }
-            if (node.x + node.radius > canvas.width - pad) {
-                node.x = canvas.width - pad - node.radius;
-                node.vx = -Math.abs(node.vx);
+
+            // Max height.
+            if (node.y > maxHeight) {
+                node.y = maxHeight;
+                node.vy = -Math.abs(node.vy) * BOUNCE_3D;
             }
-            if (node.y - node.radius < pad) {
-                node.y = pad + node.radius;
-                node.vy = Math.abs(node.vy);
-            }
-            if (node.y + node.radius > canvas.height - pad) {
-                node.y = canvas.height - pad - node.radius;
-                node.vy = -Math.abs(node.vy) * 0.5;
-                node.vx *= 0.9;
-            }
+
+            // Plane boundary walls.
+            if (node.x < -limit + node.radius) { node.x = -limit + node.radius; node.vx = Math.abs(node.vx) * BOUNCE_3D; }
+            if (node.x > limit - node.radius) { node.x = limit - node.radius; node.vx = -Math.abs(node.vx) * BOUNCE_3D; }
+            if (node.z < -limit + node.radius) { node.z = -limit + node.radius; node.vz = Math.abs(node.vz) * BOUNCE_3D; }
+            if (node.z > limit - node.radius) { node.z = limit - node.radius; node.vz = -Math.abs(node.vz) * BOUNCE_3D; }
         }
 
-        // Collision detection — elastic + break leader connection.
+        // 3D ball-ball collisions.
         for (var i = 0; i < nodes.length; i++) {
             for (var j = i + 1; j < nodes.length; j++) {
                 var a = nodes[i];
                 var b = nodes[j];
                 var dx = b.x - a.x;
                 var dy = b.y - a.y;
-                var dist = Math.sqrt(dx * dx + dy * dy);
+                var dz = b.z - a.z;
+                var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 var minDist = a.radius + b.radius + 2;
 
-                if (dist < minDist && dist > 0) {
+                if (dist < minDist && dist > 0.001) {
                     // Separate.
-                    var overlap = (minDist - dist) / 2;
                     var nx = dx / dist;
                     var ny = dy / dist;
+                    var nz = dz / dist;
+                    var overlap = (minDist - dist) * 0.5;
                     a.x -= nx * overlap;
                     a.y -= ny * overlap;
+                    a.z -= nz * overlap;
                     b.x += nx * overlap;
                     b.y += ny * overlap;
+                    b.z += nz * overlap;
 
                     // Elastic collision.
                     var dvx = a.vx - b.vx;
                     var dvy = a.vy - b.vy;
-                    var dot = dvx * nx + dvy * ny;
-                    a.vx -= dot * nx;
-                    a.vy -= dot * ny;
-                    b.vx += dot * nx;
-                    b.vy += dot * ny;
+                    var dvz = a.vz - b.vz;
+                    var dot = dvx * nx + dvy * ny + dvz * nz;
+                    if (dot > 0) {
+                        a.vx -= dot * nx;
+                        a.vy -= dot * ny;
+                        a.vz -= dot * nz;
+                        b.vx += dot * nx;
+                        b.vy += dot * ny;
+                        b.vz += dot * nz;
+                    }
 
-                    // If one is disconnected and the other connected, reconnect the disconnected one.
-                    // If both connected, disconnect the slower one.
-                    // Grace period prevents flicker.
+                    // Raft collision logic.
                     if (!a.connected && b.connected && a.gracePeriod <= 0) {
                         reconnectNode(a);
                     } else if (!b.connected && a.connected && b.gracePeriod <= 0) {
                         reconnectNode(b);
                     } else if (a.connected && b.connected && a.gracePeriod <= 0 && b.gracePeriod <= 0) {
-                        // Break leader connection on collision.
                         if (a.leaderId >= 0) {
                             a.leaderId = -1;
                             a.electionTimer = 0;
@@ -595,9 +692,8 @@
                             b.votedFor = -1;
                         }
 
-                        // Disconnect the slower node.
-                        var magA = a.vx * a.vx + a.vy * a.vy;
-                        var magB = b.vx * b.vx + b.vy * b.vy;
+                        var magA = a.vx * a.vx + a.vy * a.vy + a.vz * a.vz;
+                        var magB = b.vx * b.vx + b.vy * b.vy + b.vz * b.vz;
                         var slower = magA < magB ? a : b;
                         disconnectNode(slower);
                     }
@@ -614,7 +710,7 @@
         }
     }
 
-    // --- Message particles ---
+    // --- Message particles (3D) ---
     var particles = [];
     var PARTICLE_RADIUS = 3;
     var PARTICLE_SPEED = 0.015;
@@ -626,7 +722,6 @@
         if (spawnTimer < SPAWN_INTERVAL) return;
         spawnTimer = 0;
 
-        // Only spawn particles for leader connections (follower → leader).
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (!node.connected || node.leaderId < 0) continue;
@@ -640,8 +735,6 @@
         for (var i = particles.length - 1; i >= 0; i--) {
             var p = particles[i];
             p.t += PARTICLE_SPEED;
-
-            // Remove if arrived or nodes disconnected.
             if (p.t >= 1 || !nodes[p.from].connected || !nodes[p.to].connected) {
                 particles.splice(i, 1);
             }
@@ -664,57 +757,163 @@
         }
     }
 
-    // --- Drawing ---
-    function draw() {
-        // Dark background matching the page.
-        ctx.fillStyle = "#1d1d1d";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // --- 3D Drawing ---
+    function drawPlane() {
+        var corners = [
+            { x: -PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: 0, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: 0, z:  PLANE_SIZE }
+        ];
 
-        // Draw message particles as small white circles.
-        ctx.fillStyle = "#ffffff";
+        var projected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(corners[i].x, corners[i].y, corners[i].z);
+            projected.push(project(r.x, r.y, r.z));
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(projected[0].sx, projected[0].sy);
+        ctx.lineTo(projected[1].sx, projected[1].sy);
+        ctx.lineTo(projected[2].sx, projected[2].sy);
+        ctx.lineTo(projected[3].sx, projected[3].sy);
+        ctx.closePath();
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+
+        // Rope around the edge, raised above the plane (free-hanging, no posts).
+        var ropeCorners = [
+            { x: -PLANE_SIZE, y: ROPE_HEIGHT, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ROPE_HEIGHT, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, y: ROPE_HEIGHT, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, y: ROPE_HEIGHT, z:  PLANE_SIZE }
+        ];
+
+        var ropeProjected = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(ropeCorners[i].x, ropeCorners[i].y, ropeCorners[i].z);
+            ropeProjected.push(project(r.x, r.y, r.z));
+        }
+
+        // Rope line.
+        ctx.beginPath();
+        ctx.moveTo(ropeProjected[0].sx, ropeProjected[0].sy);
+        ctx.lineTo(ropeProjected[1].sx, ropeProjected[1].sy);
+        ctx.lineTo(ropeProjected[2].sx, ropeProjected[2].sy);
+        ctx.lineTo(ropeProjected[3].sx, ropeProjected[3].sy);
+        ctx.closePath();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        drawPlane();
+
+        // Build a draw list sorted by z-depth.
+        var drawList = [];
+
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            var r = applyRotation(node.x, node.y, node.z);
+            drawList.push({ z: r.z, type: "node", node: node, rotated: r });
+        }
+
         for (var i = 0; i < particles.length; i++) {
             var p = particles[i];
             var from = nodes[p.from];
             var to = nodes[p.to];
             var px = from.x + (to.x - from.x) * p.t;
             var py = from.y + (to.y - from.y) * p.t;
-
-            ctx.beginPath();
-            ctx.arc(px, py, PARTICLE_RADIUS, 0, Math.PI * 2);
-            ctx.fill();
+            var pz = from.z + (to.z - from.z) * p.t;
+            var r = applyRotation(px, py, pz);
+            drawList.push({ z: r.z, type: "particle", rotated: r });
         }
 
-        // Draw connected nodes as solid white.
-        for (var i = 0; i < nodes.length; i++) {
-            var node = nodes[i];
-            if (node.state === STATES.DISCONNECTED) continue;
-
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff";
-            ctx.fill();
-        }
-
-        // Draw disconnected nodes as solid black.
-        for (var i = 0; i < nodes.length; i++) {
-            var node = nodes[i];
-            if (node.state !== STATES.DISCONNECTED) continue;
-
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-            ctx.fillStyle = "#000000";
-            ctx.fill();
-        }
-
-        // Draw disconnect halos.
         for (var i = 0; i < halos.length; i++) {
             var h = halos[i];
             var hNode = nodes[h.nodeId];
-            ctx.beginPath();
-            ctx.arc(hNode.x, hNode.y, h.radius, 0, Math.PI * 2);
-            ctx.strokeStyle = "rgba(255, 255, 255, " + h.alpha + ")";
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            var r = applyRotation(hNode.x, hNode.y, hNode.z);
+            drawList.push({ z: r.z, type: "halo", halo: h, rotated: r });
+        }
+
+        // Sort far-to-near.
+        drawList.sort(function(a, b) { return b.z - a.z; });
+
+        for (var i = 0; i < drawList.length; i++) {
+            var item = drawList[i];
+            var proj = project(item.rotated.x, item.rotated.y, item.rotated.z);
+
+            if (item.type === "node") {
+                var screenRadius = item.node.radius * proj.scale;
+                ctx.beginPath();
+                ctx.arc(proj.sx, proj.sy, screenRadius, 0, Math.PI * 2);
+                ctx.fillStyle = item.node.state === STATES.DISCONNECTED ? "#ffdd00" : "#ffffff";
+                ctx.fill();
+            } else if (item.type === "particle") {
+                var screenR = PARTICLE_RADIUS * proj.scale;
+                ctx.beginPath();
+                ctx.arc(proj.sx, proj.sy, screenR, 0, Math.PI * 2);
+                ctx.fillStyle = "#ffffff";
+                ctx.fill();
+            } else if (item.type === "halo") {
+                var screenR = item.halo.radius * proj.scale;
+                ctx.beginPath();
+                ctx.arc(proj.sx, proj.sy, screenR, 0, Math.PI * 2);
+                ctx.strokeStyle = "rgba(255, 255, 255, " + item.halo.alpha + ")";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+    }
+
+    // --- Idle detection: jitter + force re-election when everything settles ---
+    var idleTimer = 0;
+    var IDLE_THRESHOLD = 180; // ~3 seconds at 60fps
+
+    function checkIdle() {
+        var totalSpeed = 0;
+        var hasLeader = false;
+        var connectedCount = 0;
+
+        for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            totalSpeed += Math.abs(n.vx) + Math.abs(n.vy) + Math.abs(n.vz);
+            if (n.state === STATES.LEADER) hasLeader = true;
+            if (n.connected) connectedCount++;
+        }
+
+        var avgSpeed = totalSpeed / nodes.length;
+
+        if (avgSpeed < 0.3 && connectedCount > 0) {
+            idleTimer++;
+        } else {
+            idleTimer = 0;
+        }
+
+        if (idleTimer > IDLE_THRESHOLD) {
+            idleTimer = 0;
+
+            // Add jitter to all nodes.
+            for (var i = 0; i < nodes.length; i++) {
+                var n = nodes[i];
+                var angle = Math.random() * Math.PI * 2;
+                n.vx += Math.cos(angle) * settings.speed * 0.5;
+                n.vz += Math.sin(angle) * settings.speed * 0.5;
+                n.vy += (Math.random() - 0.3) * settings.speed * 0.3;
+            }
+
+            // If no leader, force an election.
+            if (!hasLeader && connectedCount > 0) {
+                for (var i = 0; i < nodes.length; i++) {
+                    if (nodes[i].connected) {
+                        nodes[i].electionTimer = nodes[i].electionTimeout;
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -725,8 +924,13 @@
             return;
         }
 
+        if (settings.autoRotate && !camDragging) {
+            rotY += 0.003;
+        }
+
         simulate();
         updatePhysics();
+        checkIdle();
         spawnParticles();
         updateParticles();
         updateHalos();
