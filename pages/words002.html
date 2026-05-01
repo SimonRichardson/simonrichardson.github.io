@@ -1,0 +1,257 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    <input type="checkbox" id="setting-animate" checked>
+                    Animation
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;position:fixed;top:0;left:0;z-index:0;"></canvas>
+<div style="max-width:640px;margin:40px auto;padding:20px;font-family:sans-serif;color:#fff;line-height:1.7;position:relative;z-index:1;">
+    <p style="color:#888;font-size:11px;margin-bottom:4px;">DRAFT</p>
+    <h2 style="margin-top:0;">The Uncanny Valley</h2>
+
+    <hr style="border:none;border-top:1px solid #444;margin:24px 0;">
+
+    <p>
+        I've been building this website recently, mainly as an experiment, mainly to see
+        how to get my thoughts from my mind on to paper - screen if you will. Pair
+        programming, trying to remember how things fitted together. Me thinking deeply,
+        writing paragraphs of specs, about how things should work. I'm typing, giving it
+        guidance and it's coming up with solutions. It's not perfect, so I have to jump
+        in and write the correct solution or really tell it to think really really hard.
+        And the thing that keeps striking me isn't how clever it is. It's how close it
+        gets without quite landing.
+    </p>
+
+    <p>
+        See, I'm nostalgic for the old web. Not in a "things were better back then"
+        way - well, maybe a bit - but that era when you'd view source on someone's site
+        and it'd be hand-rolled HTML with inline styles and a visitor counter that didn't
+        work. Geocities. Angelfire. Tables for layout. The whole lot. It were rough as owt
+        but it were <em>yours</em>.
+    </p>
+
+    <p>
+        So I'm sat here asking an AI to help me recreate that feeling. An old time
+        aesthetic. Grey panels. Bevelled edges. Sans-serif everything. And it does it. It
+        absolutely does it. The CSS lands, the grab handles work, the little minimize
+        buttons sit in the right spot. But there's this gap. Like someone's described your
+        nan's kitchen from a photo and built it in a showroom. Looks right. Doesn't smell
+        of toast.
+    </p>
+
+    <p>
+        The thing I'm chasing doesn't exist anymore. Maybe it never did. I remember the
+        <em>feeling</em> of those old interfaces more than the reality. The reality was
+        everything crashed, nothing worked on the first try, and you'd spend three hours
+        debugging a floating div in IE6. But my brain's filed all that under "character"
+        and kept the warm glow.
+    </p>
+
+    <p>
+        When an LLM recreates it, it gives you the version you described, not the version
+        you remember. And those are different things. You describe the aesthetics but the
+        memory includes the frustration, the discovery, the staying up til 2am because you
+        finally got the DHTML dropdown menu to work and you felt like a god.
+    </p>
+
+    <p>
+        It's the uncanny valley proper. The LLM writes perfectly functional code that does
+        almost what you asked for. But it doesn't have the weird decisions you'd have made
+        at 3am. It doesn't have the "sod it, that'll do" shortcuts. It doesn't have the bit
+        where you got bored halfway through and changed direction.
+    </p>
+
+    <p>
+        The nostalgia still hits though, when I open the page and see that grey window
+        frame. My brain fills in the gaps because it wants to. The LLM gives you the
+        skeleton and your memory does the rest.
+    </p>
+
+    <h3>For better or worse</h3>
+
+    <p>
+        I don't think this is a bad thing. The old web was crooked. Nothing lined up.
+        Nothing was consistent. Half of it was broken and the other half was about to be.
+        What I've ended up with is something new that <em>rhymes</em> with something old.
+        Not a faithful recreation. More like humming a tune you half-remember and filling
+        in the bits you've forgotten with whatever feels right.
+    </p>
+
+    <p>
+        Besides, if I'm being honest, the original were nowt special either. I just
+        happened to be seventeen when I saw it.
+    </p>
+</div>
+<script>
+(function() {
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // Stars in the sky portion
+    var NUM_STARS = 200;
+    var stars = [];
+    for (var i = 0; i < NUM_STARS; i++) {
+        stars.push({
+            x: Math.random(),
+            y: Math.random() * 0.7,
+            twinkleOffset: Math.random() * Math.PI * 2,
+            twinkleSpeed: 0.01 + Math.random() * 0.03,
+            size: 0.5 + Math.random() * 1.5
+        });
+    }
+
+    // Dune rows - each is a horizontal strip at a z-depth
+    var NUM_ROWS = 60;
+    var rows = [];
+    for (var i = 0; i < NUM_ROWS; i++) {
+        rows.push({
+            z: i * (2000 / NUM_ROWS),
+            seed: Math.random() * 1000
+        });
+    }
+
+    var SPEED = 1.5;
+    var frame = 0;
+    var HORIZON = 0.55; // horizon just past halfway
+
+    // Simple noise-ish function for dune shapes
+    function duneHeight(x, seed) {
+        var v = Math.sin(x * 0.003 + seed) * 0.4
+              + Math.sin(x * 0.007 + seed * 1.3) * 0.25
+              + Math.sin(x * 0.015 + seed * 0.7) * 0.15
+              + Math.sin(x * 0.002 + seed * 2.1) * 0.2;
+        return v * 0.5 + 0.5;
+    }
+
+    function loop() {
+        var w = canvas.width;
+        var h = canvas.height;
+        var horizonY = h * HORIZON;
+
+        // Sky gradient - dark space at top, warm haze at horizon
+        var skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+        skyGrad.addColorStop(0, "#0a0a12");
+        skyGrad.addColorStop(0.7, "#1a1018");
+        skyGrad.addColorStop(1, "#2a1a14");
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, w, horizonY);
+
+        // Ground base
+        ctx.fillStyle = "#1a1008";
+        ctx.fillRect(0, horizonY, w, h - horizonY);
+
+        frame++;
+
+        // Draw stars
+        for (var i = 0; i < stars.length; i++) {
+            var s = stars[i];
+            var sx = s.x * w;
+            var sy = s.y * horizonY;
+            var twinkle = 0.4 + 0.6 * Math.sin(frame * s.twinkleSpeed + s.twinkleOffset);
+            var alpha = twinkle * (1 - s.y * 1.5);
+            if (alpha < 0.05) continue;
+            ctx.beginPath();
+            ctx.arc(sx, sy, s.size * twinkle, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,240,220," + alpha + ")";
+            ctx.fill();
+        }
+
+        // Draw dune rows from back to front
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            row.z -= SPEED;
+            if (row.z <= 0) {
+                row.z += 2000;
+                row.seed = Math.random() * 1000;
+            }
+
+            // Perspective: further rows closer to horizon
+            var depth = row.z / 2000; // 0 = close, 1 = far
+            var screenY = horizonY + (1 - depth) * (h - horizonY);
+
+            // Dune colour - warm sandy, lighter in distance
+            var r = Math.floor(55 + depth * 25);
+            var g = Math.floor(38 + depth * 18);
+            var b = Math.floor(18 + depth * 12);
+            var rowAlpha = 0.4 + (1 - depth) * 0.6;
+
+            // Draw dune profile as a filled shape
+            var rowHeight = (1 - depth) * 80 + 8;
+            ctx.beginPath();
+            ctx.moveTo(0, screenY);
+            var step = 4;
+            for (var x = 0; x <= w; x += step) {
+                var dh = duneHeight(x + frame * 0.2 * (1 - depth * 0.8), row.seed);
+                var py = screenY - dh * rowHeight;
+                if (x === 0) ctx.moveTo(x, py);
+                else ctx.lineTo(x, py);
+            }
+            ctx.lineTo(w, screenY + 4);
+            ctx.lineTo(0, screenY + 4);
+            ctx.closePath();
+            ctx.fillStyle = "rgba(" + r + "," + g + "," + b + "," + rowAlpha + ")";
+            ctx.fill();
+
+            // Subtle highlight on dune ridges for closer rows
+            if (depth < 0.5) {
+                ctx.beginPath();
+                for (var x = 0; x <= w; x += step) {
+                    var dh = duneHeight(x + frame * 0.2 * (1 - depth * 0.8), row.seed);
+                    var py = screenY - dh * rowHeight;
+                    if (x === 0) ctx.moveTo(x, py);
+                    else ctx.lineTo(x, py);
+                }
+                ctx.strokeStyle = "rgba(95,70,40," + ((1 - depth * 2) * 0.3) + ")";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // Haze near horizon
+        var hazeGrad = ctx.createLinearGradient(0, horizonY - 30, 0, horizonY + 40);
+        hazeGrad.addColorStop(0, "rgba(40,25,15,0)");
+        hazeGrad.addColorStop(0.5, "rgba(40,25,15,0.4)");
+        hazeGrad.addColorStop(1, "rgba(40,25,15,0)");
+        ctx.fillStyle = hazeGrad;
+        ctx.fillRect(0, horizonY - 30, w, 70);
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    var animateCheckbox = document.getElementById("setting-animate");
+    animateCheckbox.addEventListener("change", function() {
+        canvas.style.display = this.checked ? "block" : "none";
+    });
+
+    loop();
+
+    if (window.makeDraggable) {
+        window.makeDraggable("settings", document.getElementById("settings-panel"), document.getElementById("settings-grab-track"));
+    }
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+        if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 0);
+    });
+})();
+</script>
