@@ -1,0 +1,694 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>P2P collaborative 3D drawing. Draw ribbons in space around a spinning rope. Open multiple tabs to share drawings via BroadcastChannel or WebRTC.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Max Width
+                    <input type="range" id="setting-brush" min="2" max="40" value="12">
+                </label>
+                <label>
+                    Lifetime
+                    <input type="range" id="setting-lifetime" min="1" max="60" value="10">
+                </label>
+                <button id="btn-clear" style="margin:4px 0;padding:2px 8px;">Clear Canvas</button>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Peers</div>
+                <div id="peer-list" style="font-size:11px;min-height:20px;">No peers yet</div>
+            </div>
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">Connect (WebRTC)</div>
+                <p style="font-size:10px;margin:0 0 4px;">For cross-device. May fail on restrictive NATs.</p>
+                <button id="btn-create-offer" style="padding:2px 6px;margin-bottom:4px;">Create Offer</button>
+                <button id="btn-accept-offer" style="padding:2px 6px;margin-bottom:4px;">Accept Offer</button>
+                <button id="btn-accept-answer" style="padding:2px 6px;margin-bottom:4px;">Accept Answer</button>
+                <textarea id="rtc-text" rows="3" style="width:100%;font-size:10px;resize:vertical;" placeholder="Paste offer/answer here..."></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="peer-status" style="position:fixed;top:4px;right:8px;font:11px sans-serif;color:#333;background:rgba(255,255,255,0.8);padding:2px 6px;border-radius:3px;pointer-events:none;z-index:9999;">0 peers</div>
+<canvas id="home-canvas" style="cursor:crosshair;"></canvas>
+<script>
+(function() {
+    var settingsPanel = document.getElementById("settings-panel");
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    // --- Settings ---
+    var maxWidth = 12;
+    var segmentLifetime = 10; // seconds
+    document.getElementById("setting-brush").addEventListener("input", function() {
+        maxWidth = parseInt(this.value, 10) || 12;
+    });
+    document.getElementById("setting-lifetime").addEventListener("input", function() {
+        segmentLifetime = parseInt(this.value, 10) || 10;
+    });
+
+    // --- Canvas setup ---
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    // --- State ---
+    var opLog = [];
+    var seenMsgs = {};
+    var msgSeq = 0;
+    var peers = {};
+    var PEER_TIMEOUT = 10000;
+    var rtcChannels = [];
+    var rtcConnections = [];
+    var ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+    var MAX_PEERS = 10;
+    var myId = Math.random().toString(16).slice(2, 8);
+    var myColor = "#ffffff";
+    var peerColors = {};
+    var nextPeerHue = 0;
+    var drawing = false;
+    var currentStroke = [];
+    var myStrokes = [];
+    var lastScreenPos = null;
+    var peerStrokes = {}; // peerId -> { points:[], color, size }
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // ========== 3D MATH ==========
+    var PERSPECTIVE = 400;
+    var CUBE_SIZE = 100; // Half-size of the drawing cube.
+
+    function vec3(x, y, z) { return { x: x, y: y, z: z }; }
+
+    function normalize(v) {
+        var len = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
+        return { x: v.x / len, y: v.y / len, z: v.z / len };
+    }
+
+    function cross(a, b) {
+        return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
+    }
+
+    function dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+    function sub(a, b) { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
+
+    function add(a, b) { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+
+    function scale(v, s) { return { x: v.x * s, y: v.y * s, z: v.z * s }; }
+
+    function lerp3(a, b, t) {
+        return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
+    }
+
+    // ========== CAMERA ==========
+    var orbitAngle = 0;
+    var CAM_DIST = 250;
+    var CAM_HEIGHT = 120;
+    var CAM_TARGET = vec3(0, 40, 0);
+
+    function getCameraMatrix() {
+        var camPos = {
+            x: Math.cos(orbitAngle) * CAM_DIST,
+            y: CAM_HEIGHT,
+            z: Math.sin(orbitAngle) * CAM_DIST
+        };
+        var forward = normalize(sub(CAM_TARGET, camPos));
+        var worldUp = vec3(0, 1, 0);
+        var right = normalize(cross(forward, worldUp));
+        var up = normalize(cross(right, forward));
+        return { pos: camPos, forward: forward, right: right, up: up };
+    }
+
+    function projectWorld(worldPt, cam) {
+        var rel = sub(worldPt, cam.pos);
+        var x = dot(rel, cam.right);
+        var y = dot(rel, cam.up);
+        var z = dot(rel, cam.forward);
+        if (z < 1) z = 1;
+        var s = PERSPECTIVE / z;
+        return { sx: canvas.width / 2 + x * s, sy: canvas.height / 2 - y * s, z: z, scale: s };
+    }
+
+    // Unproject screen point to 3D: place on a plane at fixed depth from camera.
+    var DRAW_DEPTH = 200;
+
+    function unprojectScreen(sx, sy, cam) {
+        var ndcX = (sx - canvas.width / 2) / PERSPECTIVE * DRAW_DEPTH;
+        var ndcY = -(sy - canvas.height / 2) / PERSPECTIVE * DRAW_DEPTH;
+        var world = add(add(add(cam.pos, scale(cam.forward, DRAW_DEPTH)), scale(cam.right, ndcX)), scale(cam.up, ndcY));
+        // Clamp to cube.
+        world.x = Math.max(-CUBE_SIZE, Math.min(CUBE_SIZE, world.x));
+        world.y = Math.max(0, Math.min(CUBE_SIZE * 2, world.y));
+        world.z = Math.max(-CUBE_SIZE, Math.min(CUBE_SIZE, world.z));
+        return world;
+    }
+
+    // ========== GROUND PLANE ==========
+    function drawGroundPlane(cam) {
+        var S = CUBE_SIZE;
+        // Draw a solid black plane at Y=0.
+        var corners = [vec3(-S, 0, -S), vec3(-S, 0, S), vec3(S, 0, S), vec3(S, 0, -S)];
+        var projected = [];
+        for (var i = 0; i < 4; i++) {
+            var p = projectWorld(corners[i], cam);
+            if (p.z < 1) return;
+            projected.push(p);
+        }
+        ctx.fillStyle = "#000000";
+        ctx.beginPath();
+        ctx.moveTo(projected[0].sx, projected[0].sy);
+        for (var i = 1; i < 4; i++) ctx.lineTo(projected[i].sx, projected[i].sy);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // ========== 3D RIBBON DRAWING ==========
+    function drawRibbon3D(points, color, ribbonMax, cam) {
+        var len = points.length;
+        if (len < 2) return;
+        // Points are stored as {x, y, z} in world space.
+        // Compute distances for width modulation.
+        var dists = new Array(len);
+        dists[0] = 0;
+        for (var i = 1; i < len; i++) {
+            var dx = points[i].x - points[i-1].x, dy = points[i].y - points[i-1].y, dz = points[i].z - points[i-1].z;
+            dists[i] = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        }
+        var CLOSE_DIST = 2;
+        var FAR_DIST = 30;
+        var MIN_WIDTH = 0.5;
+        var widths = new Array(len);
+        for (var i = 0; i < len; i++) {
+            var t = Math.max(0, Math.min(1, (dists[i] - CLOSE_DIST) / (FAR_DIST - CLOSE_DIST)));
+            widths[i] = ribbonMax * (1 - t) + MIN_WIDTH * t;
+        }
+        // Smooth widths.
+        var smooth = new Array(len);
+        smooth[0] = widths[0];
+        for (var i = 1; i < len; i++) {
+            smooth[i] = smooth[i-1] * 0.7 + widths[i] * 0.3;
+        }
+        // Taper at start and end to a point.
+        var taperStart = Math.min(5, len);
+        var taperEnd = Math.min(8, len);
+        for (var i = 0; i < taperStart; i++) smooth[i] *= i / taperStart;
+        for (var i = Math.max(0, len - taperEnd); i < len; i++) {
+            var f = (len - 1 - i) / taperEnd;
+            smooth[i] *= f * f;
+        }
+
+        // Project all points and compute screen-space ribbon.
+        var projected = new Array(len);
+        for (var i = 0; i < len; i++) {
+            projected[i] = projectWorld(points[i], cam);
+        }
+        // Build screen-space normals for the ribbon.
+        var leftX = new Array(len), leftY = new Array(len);
+        var rightX = new Array(len), rightY = new Array(len);
+        for (var i = 0; i < len; i++) {
+            var tx, ty;
+            if (i === 0) {
+                tx = projected[1].sx - projected[0].sx; ty = projected[1].sy - projected[0].sy;
+            } else if (i === len - 1) {
+                tx = projected[i].sx - projected[i-1].sx; ty = projected[i].sy - projected[i-1].sy;
+            } else {
+                tx = projected[i+1].sx - projected[i-1].sx; ty = projected[i+1].sy - projected[i-1].sy;
+            }
+            var tl = Math.sqrt(tx*tx + ty*ty) || 1;
+            var nx = -ty / tl, ny = tx / tl;
+            var hw = smooth[i] * projected[i].scale * 0.5;
+            leftX[i] = projected[i].sx + nx * hw;
+            leftY[i] = projected[i].sy + ny * hw;
+            rightX[i] = projected[i].sx - nx * hw;
+            rightY[i] = projected[i].sy - ny * hw;
+        }
+        // Draw ribbon as individual quad segments to avoid fill gaps at joins.
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.lineJoin = "round";
+        for (var i = 0; i < len - 1; i++) {
+            ctx.beginPath();
+            ctx.moveTo(leftX[i], leftY[i]);
+            ctx.lineTo(leftX[i+1], leftY[i+1]);
+            ctx.lineTo(rightX[i+1], rightY[i+1]);
+            ctx.lineTo(rightX[i], rightY[i]);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+
+    // ========== MAIN DRAW ==========
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        var cam = getCameraMatrix();
+
+        drawGroundPlane(cam);
+
+        // Draw all completed ribbons.
+        for (var i = 0; i < opLog.length; i++) {
+            var op = opLog[i];
+            if (op.type === "stroke") {
+                drawRibbon3D(op.points, op.color, op.size, cam);
+            }
+        }
+        // Draw peer in-progress strokes.
+        for (var pid in peerStrokes) {
+            var ps = peerStrokes[pid];
+            if (ps.points.length >= 2) {
+                drawRibbon3D(ps.points, ps.color, ps.size, cam);
+            }
+        }
+        // Draw current in-progress stroke.
+        if (currentStroke.length >= 2) {
+            drawRibbon3D(currentStroke, myColor, maxWidth, cam);
+        }
+    }
+
+    // ========== ANIMATION LOOP ==========
+    var time = 0;
+
+    function loop() {
+        orbitAngle -= 0.003;
+        time += 0.016;
+        expireSegments();
+        // Continue drawing as world rotates even if mouse hasn't moved
+        if (drawing && lastScreenPos) {
+            var newPt = screenTo3D(lastScreenPos.x, lastScreenPos.y);
+            var last = currentStroke[currentStroke.length - 1];
+            var dx = newPt.x - last.x, dy = newPt.y - last.y, dz = newPt.z - last.z;
+            if (dx*dx + dy*dy + dz*dz > 1) {
+                currentStroke.push(newPt);
+                queueMsg(makeMsg("stroke-point", { point: newPt }));
+            }
+        }
+        draw();
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+    loop();
+
+    // ========== DRAWING INPUT ==========
+    function getCanvasPos(e) {
+        var rect = canvas.getBoundingClientRect();
+        if (e.touches) {
+            return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+        }
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    function screenTo3D(sx, sy) {
+        var cam = getCameraMatrix();
+        var pt = unprojectScreen(sx, sy, cam);
+        pt.t = Date.now();
+        return pt;
+    }
+
+    function expireSegments() {
+        var cutoff = Date.now() - segmentLifetime * 1000;
+        var expired = 0;
+        // Expire points only from local user's completed strokes
+        for (var i = myStrokes.length - 1; i >= 0; i--) {
+            var op = myStrokes[i];
+            while (op.points.length > 0 && op.points[0].t && op.points[0].t < cutoff) {
+                op.points.shift();
+                expired++;
+            }
+            if (op.points.length < 2) {
+                myStrokes.splice(i, 1);
+                var oi = opLog.indexOf(op);
+                if (oi >= 0) opLog.splice(oi, 1);
+            }
+        }
+        // Expire points from current stroke
+        while (currentStroke.length > 1 && currentStroke[0].t && currentStroke[0].t < cutoff) {
+            currentStroke.shift();
+            expired++;
+        }
+        if (expired > 0) {
+            queueMsg(makeMsg("expire", { count: expired }));
+        }
+    }
+
+    function startDraw(e) {
+        drawing = true;
+        var pos = getCanvasPos(e);
+        lastScreenPos = pos;
+        var pt = screenTo3D(pos.x, pos.y);
+        currentStroke = [pt];
+        queueMsg(makeMsg("stroke-start", { point: pt, color: myColor, size: maxWidth }));
+    }
+
+    function moveDraw(e) {
+        if (!drawing) return;
+        var pos = getCanvasPos(e);
+        lastScreenPos = pos;
+        var pt = screenTo3D(pos.x, pos.y);
+        currentStroke.push(pt);
+        queueMsg(makeMsg("stroke-point", { point: pt }));
+    }
+
+    function endDraw() {
+        if (!drawing) return;
+        drawing = false;
+        if (currentStroke.length >= 2) {
+            var op = { type: "stroke", points: currentStroke, color: myColor, size: maxWidth };
+            opLog.push(op);
+            myStrokes.push(op);
+            flushQueue();
+            broadcastMsg(makeMsg("stroke-end", {}));
+        } else {
+            flushQueue();
+            broadcastMsg(makeMsg("stroke-end", {}));
+        }
+        currentStroke = [];
+    }
+
+    canvas.addEventListener("mousedown", function(e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        startDraw(e);
+    });
+    document.addEventListener("mousemove", function(e) {
+        if (!drawing) return;
+        moveDraw(e);
+    });
+    document.addEventListener("mouseup", endDraw);
+    canvas.addEventListener("touchstart", function(e) { e.preventDefault(); startDraw(e); }, { passive: false });
+    canvas.addEventListener("touchmove", function(e) { e.preventDefault(); moveDraw(e); }, { passive: false });
+    canvas.addEventListener("touchend", endDraw);
+
+    // ========== P2P NETWORKING ==========
+    function makeMsg(type, data) {
+        msgSeq++;
+        var msg = { type: type, peerId: myId, msgId: myId + ":" + msgSeq };
+        for (var k in data) msg[k] = data[k];
+        return msg;
+    }
+
+    function isDuplicate(msg) {
+        if (!msg.msgId) return false;
+        if (seenMsgs[msg.msgId]) return true;
+        seenMsgs[msg.msgId] = true;
+        var keys = Object.keys(seenMsgs);
+        if (keys.length > 2000) {
+            for (var i = 0; i < 500; i++) delete seenMsgs[keys[i]];
+        }
+        return false;
+    }
+
+    function updatePeerUI() {
+        var ids = Object.keys(peers);
+        var count = ids.length;
+        document.getElementById("peer-status").textContent = count + " peer" + (count !== 1 ? "s" : "");
+        if (count === 0) {
+            document.getElementById("peer-list").textContent = "No peers yet";
+            return;
+        }
+        var html = "";
+        for (var i = 0; i < ids.length; i++) {
+            var p = peers[ids[i]];
+            html += '<span style="color:' + p.color + ';">&#9679;</span> ' + ids[i] + " ";
+        }
+        document.getElementById("peer-list").innerHTML = html;
+    }
+
+    function getPeerColor(peerId) {
+        if (peerColors[peerId]) return peerColors[peerId];
+        // Assign distinct hue, low saturation for grey-ish tones, varied lightness
+        var hue = nextPeerHue;
+        nextPeerHue = (nextPeerHue + 137) % 360; // golden angle spread
+        var color = "hsl(" + hue + ", 30%, " + (55 + (Object.keys(peerColors).length % 4) * 10) + "%)";
+        peerColors[peerId] = color;
+        return color;
+    }
+
+    function registerPeer(peerId, color, transport) {
+        if (peerId === myId) return;
+        if (!peers[peerId] && Object.keys(peers).length >= MAX_PEERS) return;
+        var pColor = getPeerColor(peerId);
+        peers[peerId] = { color: pColor, lastSeen: Date.now(), transport: transport };
+        updatePeerUI();
+    }
+
+    setInterval(function() {
+        var now = Date.now();
+        var changed = false;
+        for (var id in peers) {
+            if (now - peers[id].lastSeen > PEER_TIMEOUT) {
+                delete peers[id];
+                changed = true;
+            }
+        }
+        if (changed) updatePeerUI();
+    }, 5000);
+
+    var bc = null;
+    try { bc = new BroadcastChannel("toys012-p2p"); } catch(e) {}
+
+    function broadcastMsg(msg) {
+        if (bc) bc.postMessage(msg);
+        for (var i = 0; i < rtcChannels.length; i++) {
+            try {
+                if (rtcChannels[i].readyState === "open") {
+                    rtcChannels[i].send(JSON.stringify(msg));
+                }
+            } catch(e) {}
+        }
+    }
+
+    var sendQueue = [];
+    var sendTimer = null;
+    var BATCH_INTERVAL = 50;
+
+    function queueMsg(msg) {
+        sendQueue.push(msg);
+        if (!sendTimer) {
+            sendTimer = setTimeout(flushQueue, BATCH_INTERVAL);
+        }
+    }
+
+    function flushQueue() {
+        sendTimer = null;
+        if (sendQueue.length === 0) return;
+        if (sendQueue.length === 1) {
+            broadcastMsg(sendQueue[0]);
+        } else {
+            broadcastMsg({ type: "batch", msgs: sendQueue, peerId: myId, msgId: myId + ":" + (++msgSeq) });
+        }
+        sendQueue = [];
+    }
+
+    function handleMessage(msg, transport) {
+        if (!msg || msg.peerId === myId) return;
+        if (msg.type === "batch") {
+            if (isDuplicate(msg)) return;
+            var msgs = msg.msgs;
+            for (var bi = 0; bi < msgs.length; bi++) {
+                msgs[bi].peerId = msg.peerId;
+                handleMessage(msgs[bi], transport);
+            }
+            return;
+        }
+        if (isDuplicate(msg)) return;
+
+        if (msg.type === "hello") {
+            registerPeer(msg.peerId, msg.color, transport);
+            return;
+        }
+        if (msg.type === "stroke-start") {
+            registerPeer(msg.peerId, msg.color, transport);
+            var pColor = getPeerColor(msg.peerId);
+            var pt = msg.point;
+            if (!pt.t) pt.t = Date.now();
+            peerStrokes[msg.peerId] = { points: [pt], color: pColor, size: msg.size };
+            return;
+        }
+        if (msg.type === "stroke-point") {
+            var ps = peerStrokes[msg.peerId];
+            if (ps) {
+                var pt = msg.point;
+                if (!pt.t) pt.t = Date.now();
+                ps.points.push(pt);
+            }
+            return;
+        }
+        if (msg.type === "stroke-end") {
+            var ps = peerStrokes[msg.peerId];
+            if (ps && ps.points.length >= 2) {
+                opLog.push({ type: "stroke", points: ps.points, color: ps.color, size: ps.size, owner: msg.peerId });
+            }
+            delete peerStrokes[msg.peerId];
+            return;
+        }
+        if (msg.type === "expire") {
+            var remaining = msg.count || 0;
+            // Remove points from this peer's in-progress stroke first
+            var ps = peerStrokes[msg.peerId];
+            if (ps) {
+                while (remaining > 0 && ps.points.length > 0) {
+                    ps.points.shift();
+                    remaining--;
+                }
+                if (ps.points.length < 2) delete peerStrokes[msg.peerId];
+            }
+            // Then from this peer's completed strokes (oldest first)
+            for (var i = 0; i < opLog.length && remaining > 0; i++) {
+                var op = opLog[i];
+                if (op.owner !== msg.peerId) continue;
+                while (remaining > 0 && op.points.length > 0) {
+                    op.points.shift();
+                    remaining--;
+                }
+                if (op.points.length < 2) {
+                    opLog.splice(i, 1);
+                    i--;
+                }
+            }
+            return;
+        }
+        if (msg.type === "stroke") {
+            registerPeer(msg.peerId, msg.color, transport);
+            var pColor = getPeerColor(msg.peerId);
+            var now = Date.now();
+            var pts = msg.points;
+            for (var pi = 0; pi < pts.length; pi++) { if (!pts[pi].t) pts[pi].t = now; }
+            opLog.push({ type: "stroke", points: pts, color: pColor, size: msg.size, owner: msg.peerId });
+            return;
+        }
+        if (msg.type === "clear") {
+            opLog = [];
+            myStrokes = [];
+            return;
+        }
+        if (msg.type === "sync-request") {
+            broadcastMsg(makeMsg("sync", { ops: opLog }));
+            return;
+        }
+        if (msg.type === "sync") {
+            opLog = msg.ops || [];
+            return;
+        }
+    }
+
+    if (bc) {
+        bc.onmessage = function(e) { handleMessage(e.data, "bc"); };
+    }
+
+    function sendHello() {
+        broadcastMsg(makeMsg("hello", { color: myColor }));
+    }
+    sendHello();
+    setInterval(sendHello, 4000);
+
+    setTimeout(function() {
+        broadcastMsg(makeMsg("sync-request", {}));
+    }, 500);
+
+    // --- WebRTC ---
+    function setupDataChannel(channel) {
+        rtcChannels.push(channel);
+        channel.onmessage = function(e) {
+            try { handleMessage(JSON.parse(e.data), "rtc"); } catch(err) {}
+        };
+        channel.onopen = function() {
+            sendHello();
+            broadcastMsg(makeMsg("sync-request", {}));
+        };
+        channel.onclose = function() {
+            var idx = rtcChannels.indexOf(channel);
+            if (idx >= 0) rtcChannels.splice(idx, 1);
+        };
+    }
+
+    document.getElementById("btn-create-offer").addEventListener("click", function() {
+        if (rtcChannels.length >= MAX_PEERS) return;
+        var pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        rtcConnections.push(pc);
+        var dc = pc.createDataChannel("draw");
+        setupDataChannel(dc);
+        pc.onicecandidate = function(e) {
+            if (!e.candidate) {
+                document.getElementById("rtc-text").value = btoa(JSON.stringify(pc.localDescription));
+                document.getElementById("rtc-text").select();
+            }
+        };
+        pc.createOffer().then(function(offer) { return pc.setLocalDescription(offer); });
+    });
+
+    document.getElementById("btn-accept-offer").addEventListener("click", function() {
+        if (rtcChannels.length >= MAX_PEERS) return;
+        var text = document.getElementById("rtc-text").value.trim();
+        if (!text) return;
+        try {
+            var offer = JSON.parse(atob(text));
+            var pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+            rtcConnections.push(pc);
+            pc.ondatachannel = function(e) { setupDataChannel(e.channel); };
+            pc.onicecandidate = function(e) {
+                if (!e.candidate) {
+                    document.getElementById("rtc-text").value = btoa(JSON.stringify(pc.localDescription));
+                    document.getElementById("rtc-text").select();
+                }
+            };
+            pc.setRemoteDescription(offer).then(function() {
+                return pc.createAnswer();
+            }).then(function(answer) { return pc.setLocalDescription(answer); });
+        } catch(e) { if (window.showModal) window.showModal("Invalid offer: " + e.message); }
+    });
+
+    document.getElementById("btn-accept-answer").addEventListener("click", function() {
+        var text = document.getElementById("rtc-text").value.trim();
+        if (!text) return;
+        try {
+            var answer = JSON.parse(atob(text));
+            for (var i = rtcConnections.length - 1; i >= 0; i--) {
+                if (rtcConnections[i].signalingState === "have-local-offer") {
+                    rtcConnections[i].setRemoteDescription(answer);
+                    document.getElementById("rtc-text").value = "Connected!";
+                    break;
+                }
+            }
+        } catch(e) { if (window.showModal) window.showModal("Invalid answer: " + e.message); }
+    });
+
+    // --- Clear button ---
+    document.getElementById("btn-clear").addEventListener("click", function() {
+        opLog = [];
+        myStrokes = [];
+        broadcastMsg(makeMsg("clear", {}));
+    });
+
+    // --- Cleanup ---
+    window.addEventListener("beforeunload", function() {
+        broadcastMsg(makeMsg("goodbye", {}));
+    });
+})();
+</script>
