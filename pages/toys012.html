@@ -595,14 +595,53 @@
 
     canvas.addEventListener("mousedown", function(e) {
         if (e.button !== 0) return;
+        if (spaceDown) return;
         e.preventDefault();
         startDraw(e);
     });
     document.addEventListener("mousemove", function(e) {
+        if (spaceDown && camDragging) {
+            rotY += (e.clientX - lastCamX) * 0.005;
+            rotX += (e.clientY - lastCamY) * 0.005;
+            rotX = Math.max(-1.2, Math.min(0.1, rotX));
+            lastCamX = e.clientX;
+            lastCamY = e.clientY;
+            return;
+        }
         if (!drawing) return;
         moveDraw(e);
     });
-    document.addEventListener("mouseup", endDraw);
+    document.addEventListener("mouseup", function() {
+        camDragging = false;
+        endDraw();
+    });
+
+    // Space key + mouse to rotate view
+    var spaceDown = false;
+    var camDragging = false;
+    var lastCamX = 0, lastCamY = 0;
+    document.addEventListener("keydown", function(e) {
+        if (e.code === "Space" || e.key === " ") {
+            e.preventDefault();
+            spaceDown = true;
+        }
+    });
+    document.addEventListener("keyup", function(e) {
+        if (e.code === "Space" || e.key === " ") {
+            spaceDown = false;
+            camDragging = false;
+        }
+    });
+    canvas.addEventListener("mousedown", function(e) {
+        if (spaceDown) {
+            camDragging = true;
+            lastCamX = e.clientX;
+            lastCamY = e.clientY;
+            e.preventDefault();
+            return;
+        }
+    });
+
     canvas.addEventListener("touchstart", function(e) { e.preventDefault(); startDraw(e); }, { passive: false });
     canvas.addEventListener("touchmove", function(e) { e.preventDefault(); moveDraw(e); }, { passive: false });
     canvas.addEventListener("touchend", endDraw);
