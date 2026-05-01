@@ -101,8 +101,8 @@
     window.addEventListener("resize", resize);
 
     // ========== 3D MATH ==========
-    var PERSPECTIVE = 400;
-    var CUBE_SIZE = 100; // Half-size of the drawing cube.
+    var PERSPECTIVE = 800;
+    var PLANE_SIZE = 600; // Full size of the drawing plane.
 
     function vec3(x, y, z) { return { x: x, y: y, z: z }; }
 
@@ -128,57 +128,53 @@
     }
 
     // ========== CAMERA ==========
-    var orbitAngle = 0;
-    var CAM_DIST = 250;
-    var CAM_HEIGHT = 120;
-    var CAM_TARGET = vec3(0, 40, 0);
+    var rotY = 0;
+    var rotX = -0.5;
 
-    function getCameraMatrix() {
-        var camPos = {
-            x: Math.cos(orbitAngle) * CAM_DIST,
-            y: CAM_HEIGHT,
-            z: Math.sin(orbitAngle) * CAM_DIST
-        };
-        var forward = normalize(sub(CAM_TARGET, camPos));
-        var worldUp = vec3(0, 1, 0);
-        var right = normalize(cross(forward, worldUp));
-        var up = normalize(cross(right, forward));
-        return { pos: camPos, forward: forward, right: right, up: up };
+    function applyRotation(x, y, z) {
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
     }
 
-    function projectWorld(worldPt, cam) {
-        var rel = sub(worldPt, cam.pos);
-        var x = dot(rel, cam.right);
-        var y = dot(rel, cam.up);
-        var z = dot(rel, cam.forward);
-        if (z < 1) z = 1;
-        var s = PERSPECTIVE / z;
-        return { sx: canvas.width / 2 + x * s, sy: canvas.height / 2 - y * s, z: z, scale: s };
+    function projectWorld(worldPt) {
+        var r = applyRotation(worldPt.x, worldPt.y, worldPt.z);
+        var s = PERSPECTIVE / (PERSPECTIVE + r.z);
+        return { sx: canvas.width / 2 + r.x * s, sy: canvas.height / 2 - r.y * s, z: r.z, scale: s };
     }
 
-    // Unproject screen point to 3D: place on a plane at fixed depth from camera.
+    // Unproject screen point to 3D: invert projection at a fixed depth.
     var DRAW_DEPTH = 200;
 
-    function unprojectScreen(sx, sy, cam) {
-        var ndcX = (sx - canvas.width / 2) / PERSPECTIVE * DRAW_DEPTH;
-        var ndcY = -(sy - canvas.height / 2) / PERSPECTIVE * DRAW_DEPTH;
-        var world = add(add(add(cam.pos, scale(cam.forward, DRAW_DEPTH)), scale(cam.right, ndcX)), scale(cam.up, ndcY));
-        // Clamp to cube.
-        world.x = Math.max(-CUBE_SIZE, Math.min(CUBE_SIZE, world.x));
-        world.y = Math.max(0, Math.min(CUBE_SIZE * 2, world.y));
-        world.z = Math.max(-CUBE_SIZE, Math.min(CUBE_SIZE, world.z));
-        return world;
+    function unprojectScreen(sx, sy) {
+        var s = PERSPECTIVE / (PERSPECTIVE + DRAW_DEPTH);
+        var rx = (sx - canvas.width / 2) / s;
+        var ry = -(sy - canvas.height / 2) / s;
+        // Invert rotation
+        var cosX = Math.cos(-rotX), sinX = Math.sin(-rotX);
+        var iry = ry * cosX - DRAW_DEPTH * sinX;
+        var irz = ry * sinX + DRAW_DEPTH * cosX;
+        var cosY = Math.cos(-rotY), sinY = Math.sin(-rotY);
+        var ix = rx * cosY + irz * sinY;
+        var iz = -rx * sinY + irz * cosY;
+        var half = PLANE_SIZE / 2;
+        ix = Math.max(-half, Math.min(half, ix));
+        iry = Math.max(0, Math.min(PLANE_SIZE, iry));
+        iz = Math.max(-half, Math.min(half, iz));
+        return { x: ix, y: iry, z: iz };
     }
 
     // ========== GROUND PLANE ==========
-    function drawGroundPlane(cam) {
-        var S = CUBE_SIZE;
-        // Draw a solid black plane at Y=0.
-        var corners = [vec3(-S, 0, -S), vec3(-S, 0, S), vec3(S, 0, S), vec3(S, 0, -S)];
+    function drawGroundPlane() {
+        var half = PLANE_SIZE / 2;
+        var corners = [vec3(-half, 0, -half), vec3(-half, 0, half), vec3(half, 0, half), vec3(half, 0, -half)];
         var projected = [];
         for (var i = 0; i < 4; i++) {
-            var p = projectWorld(corners[i], cam);
-            if (p.z < 1) return;
+            var p = projectWorld(corners[i]);
             projected.push(p);
         }
         ctx.fillStyle = "#000000";
@@ -190,7 +186,7 @@
     }
 
     // ========== 3D RIBBON DRAWING ==========
-    function drawRibbon3D(points, color, ribbonMax, cam) {
+    function drawRibbon3D(points, color, ribbonMax) {
         var len = points.length;
         if (len < 2) return;
         // Points are stored as {x, y, z} in world space.
@@ -227,7 +223,7 @@
         // Project all points and compute screen-space ribbon.
         var projected = new Array(len);
         for (var i = 0; i < len; i++) {
-            projected[i] = projectWorld(points[i], cam);
+            projected[i] = projectWorld(points[i]);
         }
         // Build screen-space normals for the ribbon.
         var leftX = new Array(len), leftY = new Array(len);
@@ -269,27 +265,26 @@
     // ========== MAIN DRAW ==========
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        var cam = getCameraMatrix();
 
-        drawGroundPlane(cam);
+        drawGroundPlane();
 
         // Draw all completed ribbons.
         for (var i = 0; i < opLog.length; i++) {
             var op = opLog[i];
             if (op.type === "stroke") {
-                drawRibbon3D(op.points, op.color, op.size, cam);
+                drawRibbon3D(op.points, op.color, op.size);
             }
         }
         // Draw peer in-progress strokes.
         for (var pid in peerStrokes) {
             var ps = peerStrokes[pid];
             if (ps.points.length >= 2) {
-                drawRibbon3D(ps.points, ps.color, ps.size, cam);
+                drawRibbon3D(ps.points, ps.color, ps.size);
             }
         }
         // Draw current in-progress stroke.
         if (currentStroke.length >= 2) {
-            drawRibbon3D(currentStroke, myColor, maxWidth, cam);
+            drawRibbon3D(currentStroke, myColor, maxWidth);
         }
     }
 
@@ -297,7 +292,7 @@
     var time = 0;
 
     function loop() {
-        orbitAngle -= 0.003;
+        rotY -= 0.008;
         time += 0.016;
         expireSegments();
         // Continue drawing as world rotates even if mouse hasn't moved
@@ -325,8 +320,7 @@
     }
 
     function screenTo3D(sx, sy) {
-        var cam = getCameraMatrix();
-        var pt = unprojectScreen(sx, sy, cam);
+        var pt = unprojectScreen(sx, sy);
         pt.t = Date.now();
         return pt;
     }
@@ -425,7 +419,7 @@
     }
 
     function updatePeerUI() {
-        var ids = Object.keys(peers);
+        var ids = Object.keys(peers).sort();
         var count = ids.length;
         document.getElementById("peer-status").textContent = count + " peer" + (count !== 1 ? "s" : "");
         if (count === 0) {
@@ -458,12 +452,17 @@
         updatePeerUI();
     }
 
-    setInterval(function() {
+    var peerCleanupInterval = setInterval(function() {
         var now = Date.now();
         var changed = false;
         for (var id in peers) {
             if (now - peers[id].lastSeen > PEER_TIMEOUT) {
                 delete peers[id];
+                delete peerStrokes[id];
+                // Remove completed strokes owned by this peer
+                for (var i = opLog.length - 1; i >= 0; i--) {
+                    if (opLog[i].owner === id) opLog.splice(i, 1);
+                }
                 changed = true;
             }
         }
@@ -606,11 +605,23 @@
         broadcastMsg(makeMsg("hello", { color: myColor }));
     }
     sendHello();
-    setInterval(sendHello, 4000);
+    var helloInterval = setInterval(sendHello, 4000);
 
     setTimeout(function() {
         broadcastMsg(makeMsg("sync-request", {}));
     }, 500);
+
+    // --- Cleanup on navigation ---
+    window.__homeCanvasCleanup = function() {
+        clearInterval(peerCleanupInterval);
+        clearInterval(helloInterval);
+        if (bc) { bc.close(); bc = null; }
+        for (var i = 0; i < rtcConnections.length; i++) {
+            try { rtcConnections[i].close(); } catch(e) {}
+        }
+        rtcChannels = [];
+        rtcConnections = [];
+    };
 
     // --- WebRTC ---
     function setupDataChannel(channel) {

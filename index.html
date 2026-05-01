@@ -347,7 +347,7 @@
                         "Raft": { page: "pages/toys009.html" },
                         "Rope": { page: "pages/toys010.html" },
                         "Lines": { page: "pages/toys011.html" },
-                        "P2P Draw": { page: "pages/toys012.html" },
+                        "Collab": { page: "pages/toys012.html" },
                     }
                 },
                 "Writing": {
@@ -515,6 +515,11 @@
                 if (window.__homeCanvasAnimId) {
                     cancelAnimationFrame(window.__homeCanvasAnimId);
                     window.__homeCanvasAnimId = null;
+                }
+                // Clean up page-specific resources (intervals, connections).
+                if (window.__homeCanvasCleanup) {
+                    window.__homeCanvasCleanup();
+                    window.__homeCanvasCleanup = null;
                 }
                 // Unregister any fragment-owned windows from dock system.
                 window.__dockSystem.unregister("settings");
