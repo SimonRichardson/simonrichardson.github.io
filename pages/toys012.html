@@ -20,6 +20,10 @@
                     Lifetime
                     <input type="range" id="setting-lifetime" min="1" max="60" value="10">
                 </label>
+                <label>
+                    Volume
+                    <input type="range" id="setting-volume" min="0" max="100" value="50">
+                </label>
                 <button id="btn-clear" style="margin:4px 0;padding:2px 8px;">Clear Canvas</button>
             </div>
             <div class="settings-fieldset">
@@ -61,11 +65,15 @@
     // --- Settings ---
     var maxWidth = 12;
     var segmentLifetime = 10; // seconds
+    var volume = 0.5;
     document.getElementById("setting-brush").addEventListener("input", function() {
         maxWidth = parseInt(this.value, 10) || 12;
     });
     document.getElementById("setting-lifetime").addEventListener("input", function() {
         segmentLifetime = parseInt(this.value, 10) || 10;
+    });
+    document.getElementById("setting-volume").addEventListener("input", function() {
+        volume = (parseInt(this.value, 10) || 0) / 100;
     });
 
     // --- Canvas setup ---
@@ -262,6 +270,147 @@
         }
     }
 
+    // ========== AUDIO SEQUENCER ==========
+    var audioCtx = null;
+    var masterGain = null;
+    var compressor = null;
+    var strokeVoices = new WeakMap(); // points array -> voice object
+
+    function initAudio() {
+        if (audioCtx) return;
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            compressor = audioCtx.createDynamicsCompressor();
+            compressor.connect(audioCtx.destination);
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = volume;
+            masterGain.connect(compressor);
+        } catch(e) {}
+    }
+
+    function getVoice(points) {
+        var voice = strokeVoices.get(points);
+        if (voice && voice.active) return voice;
+        if (!audioCtx) return null;
+        var osc = audioCtx.createOscillator();
+        var filter = audioCtx.createBiquadFilter();
+        var gain = audioCtx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.value = 200;
+        filter.type = "lowpass";
+        filter.frequency.value = 1000;
+        filter.Q.value = 2;
+        gain.gain.value = 0;
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(masterGain);
+        osc.start();
+        voice = { osc: osc, filter: filter, gain: gain, active: true };
+        strokeVoices.set(points, voice);
+        return voice;
+    }
+
+    function releaseVoice(points) {
+        var voice = strokeVoices.get(points);
+        if (!voice || !voice.active) return;
+        var now = audioCtx.currentTime;
+        voice.gain.gain.setTargetAtTime(0, now, 0.05);
+        voice.active = false;
+        var osc = voice.osc;
+        setTimeout(function() { try { osc.stop(); } catch(e) {} }, 200);
+        strokeVoices.delete(points);
+    }
+
+    // Store previous projected X per stroke to detect crossings per frame
+    var prevProjected = new WeakMap();
+    var GLIDE_TIME = 0.04; // 40ms portamento
+
+    function checkAllTriggers() {
+        if (!audioCtx || volume === 0) return;
+        var cx = canvas.width / 2;
+        var half = PLANE_SIZE / 2;
+        var now = audioCtx.currentTime;
+        masterGain.gain.setTargetAtTime(volume, now, 0.02);
+
+        function checkStroke(points) {
+            var prev = prevProjected.get(points);
+            var curr = new Array(points.length);
+            var currZ = new Array(points.length);
+            for (var i = 0; i < points.length; i++) {
+                var p = projectWorld(points[i]);
+                curr[i] = p.sx;
+                currZ[i] = p.z;
+            }
+            prevProjected.set(points, curr);
+
+            // Find if any segment crosses the center line this frame
+            var triggered = false;
+            if (prev && prev.length === curr.length) {
+                for (var i = 0; i < points.length - 1; i++) {
+                    // Only trigger points on the front half (closer to camera)
+                    if (currZ[i] > 0) continue;
+
+                    // Or a point crossed the line between frames
+                    var pointCrossed = (prev[i] < cx) !== (curr[i] < cx);
+                    var currCross = (curr[i] < cx) !== (curr[i + 1] < cx);
+
+                    if (pointCrossed || currCross) {
+                        // Interpolate crossing position along segment
+                        var t = 0.5;
+                        if (curr[i] !== curr[i + 1]) {
+                            t = Math.max(0, Math.min(1, (cx - curr[i]) / (curr[i + 1] - curr[i])));
+                        }
+                        var hitY = points[i].y + (points[i + 1].y - points[i].y) * t;
+                        var hitX = points[i].x + (points[i + 1].x - points[i].x) * t;
+                        var hitZ = points[i].z + (points[i + 1].z - points[i].z) * t;
+                        var dist = Math.sqrt(hitX * hitX + hitZ * hitZ);
+
+                        // Freq from Y, filter from distance
+                        var freq = 120 + (hitY / PLANE_SIZE) * 1280;
+                        var cutoff = 800 + (1 - Math.min(1, dist / half)) * 4000;
+
+                        var voice = getVoice(points);
+                        if (voice) {
+                            voice.osc.frequency.setTargetAtTime(freq, now, GLIDE_TIME);
+                            voice.filter.frequency.setTargetAtTime(cutoff, now, GLIDE_TIME);
+                            voice.gain.gain.setTargetAtTime(volume * 0.25, now, 0.01);
+                        }
+                        triggered = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!triggered) {
+                // Fade out if no crossing
+                var voice = strokeVoices.get(points);
+                if (voice && voice.active) {
+                    voice.gain.gain.setTargetAtTime(0, now, 0.08);
+                }
+            }
+        }
+
+        for (var i = 0; i < opLog.length; i++) {
+            if (opLog[i].type === "stroke" && opLog[i].points.length >= 2) {
+                checkStroke(opLog[i].points);
+            }
+        }
+        for (var pid in peerStrokes) {
+            var ps = peerStrokes[pid];
+            if (ps.points.length >= 2) checkStroke(ps.points);
+        }
+        if (currentStroke.length >= 2) checkStroke(currentStroke);
+    }
+
+    // Clean up voices for removed strokes
+    function cleanupVoices() {
+        // Voices attached to deleted strokes will be GC'd via WeakMap
+    }
+
+    // Init audio on first user interaction
+    canvas.addEventListener("mousedown", initAudio, { once: true });
+    canvas.addEventListener("touchstart", initAudio, { once: true });
+
     // ========== MAIN DRAW ==========
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -286,6 +435,15 @@
         if (currentStroke.length >= 2) {
             drawRibbon3D(currentStroke, myColor, maxWidth);
         }
+
+        // Draw trigger line at center.
+        var cx = canvas.width / 2;
+        ctx.strokeStyle = "rgba(255,255,255,0.15)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, canvas.height);
+        ctx.stroke();
     }
 
     // ========== ANIMATION LOOP ==========
@@ -295,6 +453,7 @@
         rotY -= 0.008;
         time += 0.016;
         expireSegments();
+        checkAllTriggers();
         // Continue drawing as world rotates even if mouse hasn't moved
         if (drawing && lastScreenPos) {
             var newPt = screenTo3D(lastScreenPos.x, lastScreenPos.y);
@@ -303,6 +462,7 @@
             if (dx*dx + dy*dy + dz*dz > 1) {
                 currentStroke.push(newPt);
                 queueMsg(makeMsg("stroke-point", { point: newPt }));
+                updateDrawSound(newPt);
             }
         }
         draw();
@@ -351,6 +511,49 @@
         }
     }
 
+    // --- Drawing sound ---
+    var drawVoice = null;
+
+    function startDrawSound() {
+        if (!audioCtx || volume === 0) return;
+        var osc = audioCtx.createOscillator();
+        var filter = audioCtx.createBiquadFilter();
+        var gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 200;
+        filter.type = "lowpass";
+        filter.frequency.value = 1000;
+        filter.Q.value = 1;
+        gain.gain.value = 0;
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(masterGain);
+        osc.start();
+        var now = audioCtx.currentTime;
+        gain.gain.setTargetAtTime(volume * 0.15, now, 0.02);
+        drawVoice = { osc: osc, filter: filter, gain: gain };
+    }
+
+    function updateDrawSound(pt) {
+        if (!drawVoice || !audioCtx) return;
+        var half = PLANE_SIZE / 2;
+        var freq = 120 + (pt.y / PLANE_SIZE) * 1280;
+        var dist = Math.sqrt(pt.x * pt.x + pt.z * pt.z);
+        var cutoff = 800 + (1 - Math.min(1, dist / half)) * 4000;
+        var now = audioCtx.currentTime;
+        drawVoice.osc.frequency.setTargetAtTime(freq, now, 0.03);
+        drawVoice.filter.frequency.setTargetAtTime(cutoff, now, 0.03);
+    }
+
+    function stopDrawSound() {
+        if (!drawVoice) return;
+        var now = audioCtx.currentTime;
+        drawVoice.gain.gain.setTargetAtTime(0, now, 0.05);
+        var osc = drawVoice.osc;
+        setTimeout(function() { try { osc.stop(); } catch(e) {} }, 200);
+        drawVoice = null;
+    }
+
     function startDraw(e) {
         drawing = true;
         var pos = getCanvasPos(e);
@@ -358,6 +561,9 @@
         var pt = screenTo3D(pos.x, pos.y);
         currentStroke = [pt];
         queueMsg(makeMsg("stroke-start", { point: pt, color: myColor, size: maxWidth }));
+        initAudio();
+        startDrawSound();
+        updateDrawSound(pt);
     }
 
     function moveDraw(e) {
@@ -367,11 +573,13 @@
         var pt = screenTo3D(pos.x, pos.y);
         currentStroke.push(pt);
         queueMsg(makeMsg("stroke-point", { point: pt }));
+        updateDrawSound(pt);
     }
 
     function endDraw() {
         if (!drawing) return;
         drawing = false;
+        stopDrawSound();
         if (currentStroke.length >= 2) {
             var op = { type: "stroke", points: currentStroke, color: myColor, size: maxWidth };
             opLog.push(op);
@@ -621,6 +829,7 @@
         }
         rtcChannels = [];
         rtcConnections = [];
+        if (audioCtx) { audioCtx.close(); audioCtx = null; }
     };
 
     // --- WebRTC ---
