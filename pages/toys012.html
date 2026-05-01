@@ -24,6 +24,15 @@
                     Volume
                     <input type="range" id="setting-volume" min="0" max="100" value="50">
                 </label>
+                <label>
+                    Voice
+                    <select id="setting-voice">
+                        <option value="sawtooth">Sawtooth</option>
+                        <option value="square">Square</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="sine">Sine</option>
+                    </select>
+                </label>
                 <button id="btn-clear" style="margin:4px 0;padding:2px 8px;">Clear Canvas</button>
             </div>
             <div class="settings-fieldset">
@@ -75,6 +84,10 @@
     document.getElementById("setting-volume").addEventListener("input", function() {
         volume = (parseInt(this.value, 10) || 0) / 100;
     });
+    var voiceType = "sawtooth";
+    document.getElementById("setting-voice").addEventListener("change", function() {
+        voiceType = this.value;
+    });
 
     // --- Canvas setup ---
     var canvas = document.getElementById("home-canvas");
@@ -100,6 +113,7 @@
     var myStrokes = [];
     var lastScreenPos = null;
     var peerStrokes = {}; // peerId -> { points:[], color, size }
+    var mouseWorldPos = null; // current mouse position in 3D
 
     function resize() {
         canvas.width = canvas.parentElement.clientWidth;
@@ -155,8 +169,8 @@
         return { sx: canvas.width / 2 + r.x * s, sy: canvas.height / 2 - r.y * s, z: r.z, scale: s };
     }
 
-    // Unproject screen point to 3D: invert projection at a fixed depth.
-    var DRAW_DEPTH = 200;
+    // Unproject screen point to 3D: invert projection at the origin plane.
+    var DRAW_DEPTH = 0;
 
     function unprojectScreen(sx, sy) {
         var s = PERSPECTIVE / (PERSPECTIVE + DRAW_DEPTH);
@@ -175,6 +189,7 @@
         iz = Math.max(-half, Math.min(half, iz));
         return { x: ix, y: iry, z: iz };
     }
+
 
     // ========== GROUND PLANE ==========
     function drawGroundPlane() {
@@ -288,14 +303,14 @@
         } catch(e) {}
     }
 
-    function getVoice(points) {
+    function getVoice(points, oscType) {
         var voice = strokeVoices.get(points);
         if (voice && voice.active) return voice;
         if (!audioCtx) return null;
         var osc = audioCtx.createOscillator();
         var filter = audioCtx.createBiquadFilter();
         var gain = audioCtx.createGain();
-        osc.type = "sawtooth";
+        osc.type = oscType || "sawtooth";
         osc.frequency.value = 200;
         filter.type = "lowpass";
         filter.frequency.value = 1000;
@@ -307,6 +322,7 @@
         osc.start();
         voice = { osc: osc, filter: filter, gain: gain, active: true };
         strokeVoices.set(points, voice);
+        activeVoiceStrokes.push(points);
         return voice;
     }
 
@@ -319,20 +335,57 @@
         var osc = voice.osc;
         setTimeout(function() { try { osc.stop(); } catch(e) {} }, 200);
         strokeVoices.delete(points);
+        var idx = activeVoiceStrokes.indexOf(points);
+        if (idx >= 0) activeVoiceStrokes.splice(idx, 1);
     }
 
     // Store previous projected X per stroke to detect crossings per frame
     var prevProjected = new WeakMap();
     var GLIDE_TIME = 0.04; // 40ms portamento
+    var activeVoiceStrokes = []; // track strokes with active voices for cleanup
+
+    function silenceAllVoices() {
+        if (!audioCtx) return;
+        var now = audioCtx.currentTime;
+        for (var i = activeVoiceStrokes.length - 1; i >= 0; i--) {
+            var pts = activeVoiceStrokes[i];
+            var voice = strokeVoices.get(pts);
+            if (voice) {
+                voice.gain.gain.setTargetAtTime(0, now, 0.02);
+                voice.active = false;
+                var osc = voice.osc;
+                setTimeout(function() { try { osc.stop(); } catch(e) {} }, 150);
+                strokeVoices.delete(pts);
+            }
+        }
+        activeVoiceStrokes = [];
+    }
 
     function checkAllTriggers() {
         if (!audioCtx || volume === 0) return;
+        // Check if any ribbons exist at all
+        var hasStrokes = false;
+        for (var i = 0; i < opLog.length; i++) {
+            if (opLog[i].type === "stroke" && opLog[i].points.length >= 2) {
+                hasStrokes = true; break;
+            }
+        }
+        if (!hasStrokes) {
+            for (var pid in peerStrokes) {
+                if (peerStrokes[pid].points.length >= 2) { hasStrokes = true; break; }
+            }
+        }
+        if (!hasStrokes && currentStroke.length < 2) {
+            // Kill all active voices
+            silenceAllVoices();
+            return;
+        }
+
         var cx = canvas.width / 2;
         var half = PLANE_SIZE / 2;
         var now = audioCtx.currentTime;
-        masterGain.gain.setTargetAtTime(volume, now, 0.02);
 
-        function checkStroke(points) {
+        function checkStroke(points, oscType) {
             var prev = prevProjected.get(points);
             var curr = new Array(points.length);
             var currZ = new Array(points.length);
@@ -365,11 +418,19 @@
                         var hitZ = points[i].z + (points[i + 1].z - points[i].z) * t;
                         var dist = Math.sqrt(hitX * hitX + hitZ * hitZ);
 
-                        // Freq from Y, filter from distance
-                        var freq = 120 + (hitY / PLANE_SIZE) * 1280;
-                        var cutoff = 800 + (1 - Math.min(1, dist / half)) * 4000;
+                        // Segment length — longer segments = brighter sound
+                        var sdx = points[i+1].x - points[i].x;
+                        var sdy = points[i+1].y - points[i].y;
+                        var sdz = points[i+1].z - points[i].z;
+                        var segLen = Math.sqrt(sdx*sdx + sdy*sdy + sdz*sdz);
+                        var brightness = Math.min(1, segLen / 100);
 
-                        var voice = getVoice(points);
+                        // Freq from Y, filter from distance + segment brightness
+                        var freq = 120 + (hitY / PLANE_SIZE) * 1280;
+                        var baseCutoff = 400 + (1 - Math.min(1, dist / half)) * 2000;
+                        var cutoff = baseCutoff + brightness * 4000;
+
+                        var voice = getVoice(points, oscType);
                         if (voice) {
                             voice.osc.frequency.setTargetAtTime(freq, now, GLIDE_TIME);
                             voice.filter.frequency.setTargetAtTime(cutoff, now, GLIDE_TIME);
@@ -382,24 +443,28 @@
             }
 
             if (!triggered) {
-                // Fade out if no crossing
+                // Fade out and release if no crossing
                 var voice = strokeVoices.get(points);
                 if (voice && voice.active) {
-                    voice.gain.gain.setTargetAtTime(0, now, 0.08);
+                    voice.gain.gain.setTargetAtTime(0, now, 0.05);
+                    voice.active = false;
+                    var osc = voice.osc;
+                    setTimeout(function() { try { osc.stop(); } catch(e) {} }, 200);
+                    strokeVoices.delete(points);
                 }
             }
         }
 
         for (var i = 0; i < opLog.length; i++) {
             if (opLog[i].type === "stroke" && opLog[i].points.length >= 2) {
-                checkStroke(opLog[i].points);
+                checkStroke(opLog[i].points, opLog[i].voice || "sawtooth");
             }
         }
         for (var pid in peerStrokes) {
             var ps = peerStrokes[pid];
-            if (ps.points.length >= 2) checkStroke(ps.points);
+            if (ps.points.length >= 2) checkStroke(ps.points, ps.voice || "sawtooth");
         }
-        if (currentStroke.length >= 2) checkStroke(currentStroke);
+        if (currentStroke.length >= 2) checkStroke(currentStroke, voiceType);
     }
 
     // Clean up voices for removed strokes
@@ -411,11 +476,48 @@
     canvas.addEventListener("mousedown", initAudio, { once: true });
     canvas.addEventListener("touchstart", initAudio, { once: true });
 
+    // ========== GUIDE CIRCLE ==========
+    function drawGuideCircle() {
+        if (!mouseWorldPos) return;
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.lineWidth = 1;
+
+        var cx = mouseWorldPos.x;
+        var cz = mouseWorldPos.z;
+
+        // Small circle on ground plane
+        var CIRCLE_RADIUS = 15;
+        var SEGS = 32;
+        var points = [];
+        for (var i = 0; i <= SEGS; i++) {
+            var a = (i / SEGS) * Math.PI * 2;
+            points.push(projectWorld(vec3(cx + Math.cos(a) * CIRCLE_RADIUS, 0, cz + Math.sin(a) * CIRCLE_RADIUS)));
+        }
+        ctx.beginPath();
+        for (var i = 0; i <= SEGS; i++) {
+            if (i === 0) ctx.moveTo(points[i].sx, points[i].sy);
+            else ctx.lineTo(points[i].sx, points[i].sy);
+        }
+        ctx.stroke();
+
+        // Vertical line from plane to mouse Y (always uses real mouse Y)
+        var lineY = mouseWorldPos.y;
+        if (lineY > 1) {
+            var base = projectWorld(vec3(cx, 0, cz));
+            var top = projectWorld(vec3(cx, lineY, cz));
+            ctx.beginPath();
+            ctx.moveTo(base.sx, base.sy);
+            ctx.lineTo(top.sx, top.sy);
+            ctx.stroke();
+        }
+    }
+
     // ========== MAIN DRAW ==========
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         drawGroundPlane();
+        drawGuideCircle();
 
         // Draw all completed ribbons.
         for (var i = 0; i < opLog.length; i++) {
@@ -560,7 +662,7 @@
         lastScreenPos = pos;
         var pt = screenTo3D(pos.x, pos.y);
         currentStroke = [pt];
-        queueMsg(makeMsg("stroke-start", { point: pt, color: myColor, size: maxWidth }));
+        queueMsg(makeMsg("stroke-start", { point: pt, color: myColor, size: maxWidth, voice: voiceType }));
         initAudio();
         startDrawSound();
         updateDrawSound(pt);
@@ -581,7 +683,7 @@
         drawing = false;
         stopDrawSound();
         if (currentStroke.length >= 2) {
-            var op = { type: "stroke", points: currentStroke, color: myColor, size: maxWidth };
+            var op = { type: "stroke", points: currentStroke, color: myColor, size: maxWidth, voice: voiceType };
             opLog.push(op);
             myStrokes.push(op);
             flushQueue();
@@ -607,6 +709,12 @@
             lastCamX = e.clientX;
             lastCamY = e.clientY;
             return;
+        }
+        // Track mouse world position for guide circle
+        var rect = canvas.getBoundingClientRect();
+        var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        if (mx >= 0 && my >= 0 && mx <= rect.width && my <= rect.height) {
+            mouseWorldPos = unprojectScreen(mx, my);
         }
         if (!drawing) return;
         moveDraw(e);
@@ -774,7 +882,7 @@
             var pColor = getPeerColor(msg.peerId);
             var pt = msg.point;
             if (!pt.t) pt.t = Date.now();
-            peerStrokes[msg.peerId] = { points: [pt], color: pColor, size: msg.size };
+            peerStrokes[msg.peerId] = { points: [pt], color: pColor, size: msg.size, voice: msg.voice || "sawtooth" };
             return;
         }
         if (msg.type === "stroke-point") {
@@ -789,7 +897,7 @@
         if (msg.type === "stroke-end") {
             var ps = peerStrokes[msg.peerId];
             if (ps && ps.points.length >= 2) {
-                opLog.push({ type: "stroke", points: ps.points, color: ps.color, size: ps.size, owner: msg.peerId });
+                opLog.push({ type: "stroke", points: ps.points, color: ps.color, size: ps.size, voice: ps.voice, owner: msg.peerId });
             }
             delete peerStrokes[msg.peerId];
             return;
@@ -826,7 +934,7 @@
             var now = Date.now();
             var pts = msg.points;
             for (var pi = 0; pi < pts.length; pi++) { if (!pts[pi].t) pts[pi].t = now; }
-            opLog.push({ type: "stroke", points: pts, color: pColor, size: msg.size, owner: msg.peerId });
+            opLog.push({ type: "stroke", points: pts, color: pColor, size: msg.size, voice: msg.voice || "sawtooth", owner: msg.peerId });
             return;
         }
         if (msg.type === "clear") {
