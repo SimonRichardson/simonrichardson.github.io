@@ -1,0 +1,276 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    <input type="checkbox" id="setting-animate" checked>
+                    Animation
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;position:fixed;top:0;left:0;z-index:0;"></canvas>
+<div style="max-width:640px;margin:40px auto;padding:20px;font-family:sans-serif;color:#fff;line-height:1.7;position:relative;z-index:1;">
+    <p style="color:#888;font-size:11px;margin-bottom:4px;">DRAFT</p>
+    <h2 style="margin-top:0;">Actors without the drama</h2>
+    <p style="color:#aaa;font-size:12px;">
+        On worker patterns in
+        <a href="https://github.com/juju/juju" style="color:#809fff;">Juju</a>,
+        and how they accidentally became an actor system.
+    </p>
+
+    <hr style="border:none;border-top:1px solid #444;margin:24px 0;">
+
+    <p>
+        I've spent a good chunk of time working on
+        <a href="https://github.com/juju/juju" style="color:#809fff;">Juju</a> for my sins, 
+        which is a distributed system for deploying and managing workloads at scale. 
+        Hundreds of  workers running concurrently, reacting to database changes, 
+        coordinating  across machines. And somewhere in the middle of all that, there's 
+        a pattern that looks a lot like the actor model.
+    </p>
+
+    <h3>Workers as actors</h3>
+
+    <p>
+        A worker in Juju is dead simple on the surface. It's got <code>Kill()</code> and
+        <code>Wait() error</code>. That's your contract. Start it, stop it, find out if it
+        broke. Everything else is convention and composition.
+    </p>
+
+    <p>
+        But the interesting bit is how they wire together. Each worker is declared as a
+        <em>manifold</em> - a description of what it needs (inputs) and what it provides
+        (outputs). Inputs are named dependencies: "I need the database accessor, the agent
+        config, the file notifier." Outputs are typed interfaces that other workers can
+        consume. The dependency engine reads these declarations, works out the graph, and
+        starts things in the right order.
+    </p>
+
+    <p>
+        Sound familiar? Each worker is an isolated unit of computation with a prescribed
+        set of inputs and a typed output. They don't share memory. They communicate through
+        the dependency graph and through event streams. The manifold is basically the actor's
+        mailbox address and protocol definition rolled into one.
+    </p>
+
+    <h3>Events, not messages</h3>
+
+    <p>
+        Traditional actor models have mailboxes. Messages go in, the actor processes them
+        one at a time. Juju does something different. The workload is heavily evented.
+        Database changes flow through a change stream - transactions hit the database, a
+        change stream picks them up, a stream worker serialises them into a sequence of
+        terms, and an event multiplexer fans them out to subscribers.
+    </p>
+
+    <p>
+        Each worker subscribes to the events it cares about, filtered by namespace and
+        type. When a change comes in, the worker reacts. It might update local state,
+        trigger some API call, or start a child process. The key thing is it's pull-based
+        with a push notification. You subscribe, you get told something changed, you
+        decide what to do about it.
+    </p>
+
+    <p>
+        There's a twist though. If a subscriber doesn't act on an event in time - if it
+        falls behind or stops consuming - the multiplexer boots it. No dead letter queue,
+        no second chances. You're just out. It's then up to the worker to decide: do I
+        resubscribe and catch up, or do I give up and die? Sounds harsh, but a stuck
+        consumer can't block everyone else. That's the trade-off and it's a good one.
+    </p>
+
+    <h3>Behaviours live elsewhere</h3>
+
+    <p>
+        In a proper actor system you'd have behaviours - the ability for an actor to change
+        how it handles messages based on state. Erlang's got <code>gen_statem</code>, Akka's
+        got <code>Receive</code> swapping. Juju doesn't do that inside the worker. Instead,
+        the concept gets pushed out into watcher implementations.
+    </p>
+
+    <p>
+        This wasn't some grand architectural decision. It just fell out of doing the work.
+        Watchers are dead easy to test in isolation - you can throw a sequence of events at
+        one without standing up the whole dependency engine. And you can reuse the same
+        watcher logic across different workers. Separating "what do I watch" from "what do
+        I do about it" turned out to be more useful than cramming both into the worker.
+    </p>
+
+    <h3>Supervision</h3>
+
+    <p>
+        Right, this is the good bit. Juju has three levels of supervision, each with
+        different trade-offs.
+    </p>
+
+    <p>
+        The lightest is the <strong>catacomb</strong>. A worker owns a catacomb, and child
+        workers get attached to it. If the parent dies, all the children die. If a child
+        dies unexpectedly, the parent dies too. It's a shared fate model. Simple, brutal,
+        effective. You use it when you've got a worker that spawns helpers and the helpers
+        make no sense without the parent.
+    </p>
+
+    <p>
+        Next up is the <strong>worker.Runner</strong>. This gives you independent lifecycle
+        management. Child workers can start and stop on their own terms, configured
+        separately from the parent. The parent doesn't die just because a child restarts.
+        You get something closer to Erlang's <code>one_for_one</code> supervision strategy,
+        where each child is managed independently.
+    </p>
+
+    <p>
+        At the top sits the <strong>dependency engine</strong> itself. It manages the full
+        graph of manifolds. It knows what depends on what. If a worker dies, it can restart
+        it, which might cascade restarts through the dependency graph. Workers can restart
+        themselves, pause, or remove themselves entirely - gracefully or not. The engine
+        sorts it out.
+    </p>
+
+    <h3>Not quite actors, but near enough</h3>
+
+    <p>
+        I wouldn't put this in a textbook as an actor system. There's no location
+        transparency. There's no formal message protocol. The "mailbox" is a subscription
+        model that'll boot you if you're too slow. Behaviours live outside the actor
+        boundary.
+    </p>
+
+    <p>
+        But the bones are there. You've got isolated units of work with typed inputs and
+        outputs, event-driven reactions, hierarchical supervision. And it composes right
+        well. You can wire manifolds together into proper complex distributed workflows,
+        each one small and testable, each one reacting to changes without knowing owt
+        about the bigger picture.
+    </p>
+
+    <p>
+        It's a reactive programming model for distributed systems. Not actors proper, but
+        close enough to get the same benefits without dragging in a full framework. Nobody
+        sat down and said "right, let's build an actor system." It just grew that way
+        because the problems demanded it.
+    </p>
+</div>
+<script>
+(function() {
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    var NUM_STARS = 200;
+    var LINE_DIST = 140;
+    var stars = [];
+
+    for (var i = 0; i < NUM_STARS; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            vx: (Math.random() - 0.5) * 0.8,
+            vy: (Math.random() - 0.5) * 0.8,
+            radius: 1 + Math.random() * 1.5,
+            twinkleOffset: Math.random() * Math.PI * 2,
+            twinkleSpeed: 0.01 + Math.random() * 0.03
+        });
+    }
+
+    var frame = 0;
+    var mouseX = 0, mouseY = 0;
+
+    document.addEventListener("mousemove", function(e) {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+    });
+
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        frame++;
+
+        for (var i = 0; i < stars.length; i++) {
+            var s = stars[i];
+            s.x += s.vx;
+            s.y += s.vy;
+
+            // Wrap around edges.
+            if (s.x < -10) s.x = canvas.width + 10;
+            if (s.x > canvas.width + 10) s.x = -10;
+            if (s.y < -10) s.y = canvas.height + 10;
+            if (s.y > canvas.height + 10) s.y = -10;
+
+            // Gentle mouse repulsion.
+            var dx = s.x - mouseX;
+            var dy = s.y - mouseY;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 120 && dist > 0) {
+                var force = (120 - dist) / 120 * 0.15;
+                s.vx += (dx / dist) * force;
+                s.vy += (dy / dist) * force;
+            }
+
+            // Dampen velocity.
+            s.vx *= 0.99;
+            s.vy *= 0.99;
+
+            var twinkle = 0.5 + 0.5 * Math.sin(frame * s.twinkleSpeed + s.twinkleOffset);
+            var alpha = 0.4 + twinkle * 0.6;
+
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.radius * (0.8 + twinkle * 0.4), 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255," + alpha + ")";
+            ctx.fill();
+        }
+
+        // Draw lines between nearby stars.
+        ctx.lineWidth = 0.5;
+        for (var i = 0; i < stars.length; i++) {
+            for (var j = i + 1; j < stars.length; j++) {
+                var a = stars[i];
+                var b = stars[j];
+                var dx = a.x - b.x;
+                var dy = a.y - b.y;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < LINE_DIST) {
+                    var alpha = (1 - dist / LINE_DIST) * 0.25;
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y);
+                    ctx.lineTo(b.x, b.y);
+                    ctx.strokeStyle = "rgba(255,255,255," + alpha + ")";
+                    ctx.stroke();
+                }
+            }
+        }
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    var animateCheckbox = document.getElementById("setting-animate");
+    animateCheckbox.addEventListener("change", function() {
+        canvas.style.display = this.checked ? "block" : "none";
+    });
+
+    loop();
+
+    if (window.makeDraggable) {
+        window.makeDraggable("settings", document.getElementById("settings-panel"), document.getElementById("settings-grab-track"));
+    }
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+        if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 0);
+    });
+})();
+</script>
