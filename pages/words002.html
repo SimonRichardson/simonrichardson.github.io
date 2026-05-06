@@ -107,133 +107,92 @@
     resize();
     window.addEventListener("resize", resize);
 
-    // Stars in the sky portion
-    var NUM_STARS = 200;
-    var stars = [];
-    for (var i = 0; i < NUM_STARS; i++) {
-        stars.push({
-            x: Math.random(),
-            y: Math.random() * 0.7,
-            twinkleOffset: Math.random() * Math.PI * 2,
-            twinkleSpeed: 0.01 + Math.random() * 0.03,
-            size: 0.5 + Math.random() * 1.5
-        });
-    }
-
-    // Dune rows - each is a horizontal strip at a z-depth
-    var NUM_ROWS = 60;
-    var rows = [];
-    for (var i = 0; i < NUM_ROWS; i++) {
-        rows.push({
-            z: i * (2000 / NUM_ROWS),
-            seed: Math.random() * 1000
-        });
-    }
-
-    var SPEED = 1.5;
     var frame = 0;
-    var HORIZON = 0.55; // horizon just past halfway
-
-    // Simple noise-ish function for dune shapes
-    function duneHeight(x, seed) {
-        var v = Math.sin(x * 0.003 + seed) * 0.4
-              + Math.sin(x * 0.007 + seed * 1.3) * 0.25
-              + Math.sin(x * 0.015 + seed * 0.7) * 0.15
-              + Math.sin(x * 0.002 + seed * 2.1) * 0.2;
-        return v * 0.5 + 0.5;
+    var NUM_WAVES = 5;
+    var waves = [];
+    for (var i = 0; i < NUM_WAVES; i++) {
+        var freq = 0.002 + Math.random() * 0.004;
+        var speed = 0.008 + Math.random() * 0.012;
+        var r = 120 + Math.floor(Math.random() * 80);
+        var g = 40 + Math.floor(Math.random() * 50);
+        var b = 140 + Math.floor(Math.random() * 80);
+        var alpha = 0.15 + Math.random() * 0.15;
+        waves.push({
+            freq: freq,
+            freq2: freq * 2.3,
+            amp: 20 + Math.random() * 40,
+            speed: speed,
+            speed2: speed * 0.7,
+            phase: Math.random() * Math.PI * 2,
+            y: 0.3 + (i / NUM_WAVES) * 0.2,
+            fillTop: "rgba(" + r + "," + g + "," + b + "," + alpha + ")",
+            r: r, g: g, b: b, alpha: alpha
+        });
     }
 
     function loop() {
         var w = canvas.width;
         var h = canvas.height;
-        var horizonY = h * HORIZON;
-
-        // Sky gradient - dark space at top, warm haze at horizon
-        var skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
-        skyGrad.addColorStop(0, "#0a0a12");
-        skyGrad.addColorStop(0.7, "#1a1018");
-        skyGrad.addColorStop(1, "#2a1a14");
-        ctx.fillStyle = skyGrad;
-        ctx.fillRect(0, 0, w, horizonY);
-
-        // Ground base
-        ctx.fillStyle = "#1a1008";
-        ctx.fillRect(0, horizonY, w, h - horizonY);
-
+        var mid = h * 0.5;
+        ctx.clearRect(0, 0, w, h);
         frame++;
 
-        // Draw stars
-        for (var i = 0; i < stars.length; i++) {
-            var s = stars[i];
-            var sx = s.x * w;
-            var sy = s.y * horizonY;
-            var twinkle = 0.4 + 0.6 * Math.sin(frame * s.twinkleSpeed + s.twinkleOffset);
-            var alpha = twinkle * (1 - s.y * 1.5);
-            if (alpha < 0.05) continue;
+        var i, x, y, wave, baseY;
+
+        // Top half - memory waves
+        for (i = 0; i < NUM_WAVES; i++) {
+            wave = waves[i];
+            baseY = mid * wave.y;
+            var t1 = frame * wave.speed + wave.phase;
+            var t2 = frame * wave.speed2;
+            var amp = wave.amp;
+            var amp2 = amp * 0.3;
+
             ctx.beginPath();
-            ctx.arc(sx, sy, s.size * twinkle, 0, Math.PI * 2);
-            ctx.fillStyle = "rgba(255,240,220," + alpha + ")";
-            ctx.fill();
-        }
-
-        // Draw dune rows from back to front
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            row.z -= SPEED;
-            if (row.z <= 0) {
-                row.z += 2000;
-                row.seed = Math.random() * 1000;
+            ctx.moveTo(0, baseY + Math.sin(wave.phase + t1) * amp + Math.sin(t2) * amp2);
+            for (x = 6; x <= w; x += 6) {
+                y = baseY + Math.sin(x * wave.freq + t1) * amp
+                          + Math.sin(x * wave.freq2 + t2) * amp2;
+                ctx.lineTo(x, y);
             }
-
-            // Perspective: further rows closer to horizon
-            var depth = row.z / 2000; // 0 = close, 1 = far
-            var screenY = horizonY + (1 - depth) * (h - horizonY);
-
-            // Dune colour - warm sandy, lighter in distance
-            var r = Math.floor(55 + depth * 25);
-            var g = Math.floor(38 + depth * 18);
-            var b = Math.floor(18 + depth * 12);
-            var rowAlpha = 0.4 + (1 - depth) * 0.6;
-
-            // Draw dune profile as a filled shape
-            var rowHeight = (1 - depth) * 80 + 8;
-            ctx.beginPath();
-            ctx.moveTo(0, screenY);
-            var step = 4;
-            for (var x = 0; x <= w; x += step) {
-                var dh = duneHeight(x + frame * 0.2 * (1 - depth * 0.8), row.seed);
-                var py = screenY - dh * rowHeight;
-                if (x === 0) ctx.moveTo(x, py);
-                else ctx.lineTo(x, py);
-            }
-            ctx.lineTo(w, screenY + 4);
-            ctx.lineTo(0, screenY + 4);
+            ctx.lineTo(w, mid);
+            ctx.lineTo(0, mid);
             ctx.closePath();
-            ctx.fillStyle = "rgba(" + r + "," + g + "," + b + "," + rowAlpha + ")";
+            ctx.fillStyle = wave.fillTop;
             ctx.fill();
-
-            // Subtle highlight on dune ridges for closer rows
-            if (depth < 0.5) {
-                ctx.beginPath();
-                for (var x = 0; x <= w; x += step) {
-                    var dh = duneHeight(x + frame * 0.2 * (1 - depth * 0.8), row.seed);
-                    var py = screenY - dh * rowHeight;
-                    if (x === 0) ctx.moveTo(x, py);
-                    else ctx.lineTo(x, py);
-                }
-                ctx.strokeStyle = "rgba(95,70,40," + ((1 - depth * 2) * 0.3) + ")";
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
         }
 
-        // Haze near horizon
-        var hazeGrad = ctx.createLinearGradient(0, horizonY - 30, 0, horizonY + 40);
-        hazeGrad.addColorStop(0, "rgba(40,25,15,0)");
-        hazeGrad.addColorStop(0.5, "rgba(40,25,15,0.4)");
-        hazeGrad.addColorStop(1, "rgba(40,25,15,0)");
-        ctx.fillStyle = hazeGrad;
-        ctx.fillRect(0, horizonY - 30, w, 70);
+        // Bottom half - reflection (phase-shifted)
+        var distortPhase = Math.sin(frame * 0.003) * 0.4;
+        var colourShift = Math.sin(frame * 0.005) * 15;
+        var cs = Math.floor(colourShift);
+        var csh = Math.floor(colourShift * 0.5);
+
+        for (i = 0; i < NUM_WAVES; i++) {
+            wave = waves[i];
+            baseY = mid + mid * (1 - wave.y);
+            var t1 = (frame - 8) * wave.speed + wave.phase + distortPhase;
+            var t2 = (frame - 8) * wave.speed2 + distortPhase * 1.5;
+            var amp = wave.amp;
+            var amp2 = amp * 0.3;
+
+            ctx.beginPath();
+            ctx.moveTo(0, baseY - Math.sin(wave.phase + t1) * amp - Math.sin(t2) * amp2);
+            for (x = 6; x <= w; x += 6) {
+                y = baseY - Math.sin(x * wave.freq + t1) * amp
+                          - Math.sin(x * wave.freq2 + t2) * amp2;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(w, mid);
+            ctx.lineTo(0, mid);
+            ctx.closePath();
+
+            var rr = Math.max(0, Math.min(255, wave.r + 20 + cs));
+            var rg = Math.max(0, Math.min(255, wave.g - 10 - csh));
+            var rb = Math.max(0, Math.min(255, wave.b - 20 + cs));
+            ctx.fillStyle = "rgba(" + rr + "," + rg + "," + rb + "," + (wave.alpha * 0.85) + ")";
+            ctx.fill();
+        }
 
         window.__homeCanvasAnimId = requestAnimationFrame(loop);
     }
