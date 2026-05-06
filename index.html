@@ -67,6 +67,51 @@
 
         <div id="background-content"></div>
 
+        <noscript>
+            <style>
+                #nav-window, #prefs-window, #color-window, #bottom-bar, #background-content, #modal-overlay, #settings-panel { display: none !important; }
+                .noscript-nav { display: flex; gap: 20px; margin: 20px; font-family: sans-serif; color: #fff; height: calc(100vh - 40px); }
+                .noscript-nav nav { min-width: 180px; padding: 16px; overflow-y: auto; }
+                .noscript-nav h1 { font-size: 16px; margin: 0 0 12px; }
+                .noscript-nav h2 { font-size: 13px; margin: 16px 0 6px; color: #aaa; }
+                .noscript-nav ul { list-style: none; padding: 0; margin: 0 0 8px; }
+                .noscript-nav li { margin: 2px 0; }
+                .noscript-nav a { color: #809fff; text-decoration: none; font-size: 13px; }
+                .noscript-nav a:hover { text-decoration: underline; }
+                .noscript-nav iframe { flex: 1; border: none; background: #1d1d1d; color:#fff; }
+            </style>
+            <div class="noscript-nav">
+                <nav>
+                    <h1>Simon Richardson</h1>
+                    <h2>Writing</h2>
+                    <ul>
+                        <li><a href="pages/words001.html" target="content-frame">Loser's Game</a></li>
+                        <li><a href="pages/words002.html" target="content-frame">The Uncanny Valley</a></li>
+                        <li><a href="pages/words003.html" target="content-frame">Actors Without the Drama</a></li>
+                    </ul>
+                    <h2>Projects</h2>
+                    <ul>
+                        <li><a href="pages/projects.html" target="content-frame">Projects</a></li>
+                        <li><a href="pages/projects-go.html" target="content-frame">Go</a></li>
+                        <li><a href="pages/juju.html" target="content-frame">juju</a></li>
+                        <li><a href="pages/convoy.html" target="content-frame">convoy</a></li>
+                        <li><a href="pages/spoke-d.html" target="content-frame">spoke-d</a></li>
+                        <li><a href="pages/snowy.html" target="content-frame">snowy</a></li>
+                        <li><a href="pages/coherence.html" target="content-frame">coherence</a></li>
+                        <li><a href="pages/projects-js.html" target="content-frame">Javascript</a></li>
+                        <li><a href="pages/fantasyland.html" target="content-frame">fantasy land</a></li>
+                    </ul>
+                    <h2>About</h2>
+                    <ul>
+                        <li><a href="pages/about.html" target="content-frame">About</a></li>
+                        <li><a href="pages/profile.html" target="content-frame">Profile</a></li>
+                        <li><a href="pages/links.html" target="content-frame">Links</a></li>
+                    </ul>
+                </nav>
+                <iframe name="content-frame" src="pages/about.html" title="Content"></iframe>
+            </div>
+        </noscript>
+
         <footer id="bottom-bar">
             <span>Simon Richardson &copy; 2026</span>
             <span class="bar-links">
