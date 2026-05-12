@@ -1,0 +1,347 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>Raindrops on a pond. Ripples spread, rise and fall across a 3D plane with a bezier rope.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    Drop Rate
+                    <input type="range" id="setting-rate" min="1" max="30" value="3">
+                </label>
+                <label>
+                    Ripple Speed
+                    <input type="range" id="setting-speed" min="10" max="200" value="20">
+                </label>
+                <label>
+                    Amplitude
+                    <input type="range" id="setting-amplitude" min="1" max="40" value="25">
+                </label>
+                <label>
+                    Rings per Drop
+                    <input type="range" id="setting-rings" min="2" max="12" value="4">
+                </label>
+                <label>
+                    <input type="checkbox" id="setting-autorotate" checked>
+                    Auto-rotate
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas"></canvas>
+<script>
+(function() {
+    var settingsPanel = document.getElementById("settings-panel");
+
+    var settings = {
+        dropRate: 3,
+        rippleSpeed: 20,
+        amplitude: 25,
+        rings: 4,
+        autoRotate: true
+    };
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    document.getElementById("setting-rate").addEventListener("input", function() {
+        settings.dropRate = parseInt(this.value, 10) || 8;
+    });
+    document.getElementById("setting-speed").addEventListener("input", function() {
+        settings.rippleSpeed = parseInt(this.value, 10) || 80;
+    });
+    document.getElementById("setting-amplitude").addEventListener("input", function() {
+        settings.amplitude = parseInt(this.value, 10) || 15;
+    });
+    document.getElementById("setting-rings").addEventListener("input", function() {
+        settings.rings = parseInt(this.value, 10) || 6;
+    });
+    document.getElementById("setting-autorotate").addEventListener("change", function() {
+        settings.autoRotate = this.checked;
+    });
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // 3D parameters
+    var PERSPECTIVE = 600;
+    var PLANE_SIZE = 250;
+
+    // Rotation — Y axis drag, fixed X tilt
+    var rotY = 0.4, rotX = -0.8;
+    var camDragging = false, lastMX = 0;
+
+    canvas.addEventListener("mousedown", function(e) { camDragging = true; lastMX = e.clientX; });
+    document.addEventListener("mousemove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.clientX - lastMX) * 0.005;
+        lastMX = e.clientX;
+    });
+    document.addEventListener("mouseup", function() { camDragging = false; });
+    canvas.addEventListener("touchstart", function(e) { camDragging = true; lastMX = e.touches[0].clientX; });
+    document.addEventListener("touchmove", function(e) {
+        if (!camDragging) return;
+        rotY += (e.touches[0].clientX - lastMX) * 0.005;
+        lastMX = e.touches[0].clientX;
+    });
+    document.addEventListener("touchend", function() { camDragging = false; });
+
+    function applyRotation(x, y, z) {
+        var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        var rx = x * cosY + z * sinY;
+        var rz = -x * sinY + z * cosY;
+        var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        var ry = y * cosX - rz * sinX;
+        var rz2 = y * sinX + rz * cosX;
+        return { x: rx, y: ry, z: rz2 };
+    }
+
+    function project(x, y, z) {
+        var scale = PERSPECTIVE / (PERSPECTIVE + z);
+        return {
+            sx: canvas.width / 2 + x * scale,
+            sy: canvas.height / 2 - y * scale,
+            scale: scale
+        };
+    }
+
+    // --- Time ---
+    var time = 0;
+
+    // --- Rope (boxing ring style — raised rectangle around the plane edges) ---
+    var ROPE_HEIGHT = 35;
+
+    function drawRope() {
+        var corners = [
+            { x: -PLANE_SIZE, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, z: -PLANE_SIZE },
+            { x:  PLANE_SIZE, z:  PLANE_SIZE },
+            { x: -PLANE_SIZE, z:  PLANE_SIZE }
+        ];
+
+        var proj = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(corners[i].x, ROPE_HEIGHT, corners[i].z);
+            proj.push(project(r.x, r.y, r.z));
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(proj[0].sx, proj[0].sy);
+        for (var i = 1; i < 4; i++) ctx.lineTo(proj[i].sx, proj[i].sy);
+        ctx.closePath();
+        ctx.strokeStyle = "rgba(220,220,220,0.5)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    // --- Ripple system ---
+    var drops = [];
+    var MAX_DROPS = 20;
+    var dropTimer = 0;
+
+    function spawnDrop() {
+        drops.push({
+            x: (Math.random() - 0.5) * PLANE_SIZE * 1.8,
+            z: (Math.random() - 0.5) * PLANE_SIZE * 1.8,
+            age: 0,
+            maxAge: 5 + Math.random() * 3
+        });
+        if (drops.length > MAX_DROPS) drops.shift();
+    }
+
+    // --- Draw black ground plane at y=0 ---
+    function drawGround() {
+        var corners = [
+            { x: -PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x: PLANE_SIZE, y: 0, z: -PLANE_SIZE },
+            { x: PLANE_SIZE, y: 0, z: PLANE_SIZE },
+            { x: -PLANE_SIZE, y: 0, z: PLANE_SIZE }
+        ];
+        var proj = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(corners[i].x, corners[i].y, corners[i].z);
+            proj.push(project(r.x, r.y, r.z));
+        }
+        ctx.beginPath();
+        ctx.moveTo(proj[0].sx, proj[0].sy);
+        for (var i = 1; i < 4; i++) ctx.lineTo(proj[i].sx, proj[i].sy);
+        ctx.closePath();
+        ctx.fillStyle = "#000000";
+        ctx.fill();
+    }
+
+    // --- Draw plane at rope height (the pond surface) ---
+    function drawPlane() {
+        var corners = [
+            { x: -PLANE_SIZE, y: ROPE_HEIGHT, z: -PLANE_SIZE },
+            { x: PLANE_SIZE, y: ROPE_HEIGHT, z: -PLANE_SIZE },
+            { x: PLANE_SIZE, y: ROPE_HEIGHT, z: PLANE_SIZE },
+            { x: -PLANE_SIZE, y: ROPE_HEIGHT, z: PLANE_SIZE }
+        ];
+        var proj = [];
+        for (var i = 0; i < 4; i++) {
+            var r = applyRotation(corners[i].x, corners[i].y, corners[i].z);
+            proj.push(project(r.x, r.y, r.z));
+        }
+
+        // Clip path for the plane — used to clip ripples
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(proj[0].sx, proj[0].sy);
+        for (var i = 1; i < 4; i++) ctx.lineTo(proj[i].sx, proj[i].sy);
+        ctx.closePath();
+        ctx.clip();
+
+        return proj;
+    }
+
+    function drawPlaneBorder(proj) {
+        ctx.beginPath();
+        ctx.moveTo(proj[0].sx, proj[0].sy);
+        for (var i = 1; i < 4; i++) ctx.lineTo(proj[i].sx, proj[i].sy);
+        ctx.closePath();
+        ctx.strokeStyle = "rgba(255,255,255,0.15)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // --- Draw ripples ---
+    // Each ripple ring is a 3D circle at ROPE_HEIGHT, sampled as points
+    // then projected. The circle has vertical displacement (y) from a sine
+    // wave so the ring rises and falls.
+    var CIRCLE_SEGMENTS = 64;
+
+    function drawRipples() {
+        var amp = settings.amplitude;
+        var speed = settings.rippleSpeed;
+        var numRings = settings.rings;
+
+        for (var d = 0; d < drops.length; d++) {
+            var drop = drops[d];
+            var progress = drop.age / drop.maxAge; // 0 to 1
+
+            for (var ring = 0; ring < numRings; ring++) {
+                // Each ring expands outward at a slightly different time offset
+                var ringOffset = ring / numRings;
+                var ringAge = drop.age - ringOffset * 0.8;
+                if (ringAge < 0) continue;
+
+                var radius = ringAge * speed;
+                if (radius < 1) continue;
+                if (radius > PLANE_SIZE * 2) continue;
+
+                // Amplitude decays with age and distance
+                var decay = Math.exp(-ringAge * 0.35) * (1 - progress * 0.4);
+                var ringAmp = amp * decay;
+                if (ringAmp < 0.3) continue;
+
+                // Wavelength — the ring oscillates up and down
+                var waveFreq = 4 + ring * 0.5;
+
+                // Build 3D circle points
+                var points = [];
+                for (var s = 0; s <= CIRCLE_SEGMENTS; s++) {
+                    var angle = (s / CIRCLE_SEGMENTS) * Math.PI * 2;
+                    var px = drop.x + Math.cos(angle) * radius;
+                    var pz = drop.z + Math.sin(angle) * radius;
+
+                    // Vertical displacement — sine wave along the ring's radius
+                    var wavePhase = ringAge * waveFreq - ring * 1.2;
+                    var py = ROPE_HEIGHT - Math.sin(wavePhase) * ringAmp;
+
+                    // Add secondary ripple per-point for variation
+                    py += Math.sin(angle * 3 + ringAge * 2) * ringAmp * 0.15;
+
+                    var r = applyRotation(px, py, pz);
+                    var pr = project(r.x, r.y, r.z);
+                    points.push({ sx: pr.sx, sy: pr.sy, inside: px >= -PLANE_SIZE && px <= PLANE_SIZE && pz >= -PLANE_SIZE && pz <= PLANE_SIZE });
+                }
+
+                // Draw as a path — the clip region handles trimming to the plane
+                var alpha = Math.min(0.8, decay * 0.9);
+                ctx.beginPath();
+                var started = false;
+                for (var s = 0; s < points.length; s++) {
+                    if (!started) {
+                        ctx.moveTo(points[s].sx, points[s].sy);
+                        started = true;
+                    } else {
+                        ctx.lineTo(points[s].sx, points[s].sy);
+                    }
+                }
+                ctx.strokeStyle = "rgba(255,255,255," + alpha + ")";
+                ctx.lineWidth = Math.max(0.5, 1.5 * decay);
+                ctx.stroke();
+            }
+        }
+    }
+
+    // --- Animation loop ---
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (settings.autoRotate && !camDragging) {
+            rotY += 0.002;
+        }
+
+        var dt = 1 / 60;
+        time += dt;
+
+        // Spawn drops
+        dropTimer += dt;
+        var interval = 1 / settings.dropRate;
+        while (dropTimer >= interval) {
+            spawnDrop();
+            dropTimer -= interval;
+        }
+
+        // Age drops and remove expired
+        for (var i = drops.length - 1; i >= 0; i--) {
+            drops[i].age += dt;
+            if (drops[i].age > drops[i].maxAge) {
+                drops.splice(i, 1);
+            }
+        }
+
+        // Draw: ground → plane clip → ripples → restore → border → rope
+        drawGround();
+        var planeProj = drawPlane();
+        drawRipples();
+        ctx.restore();
+        drawPlaneBorder(planeProj);
+        drawRope();
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    loop();
+})();
+</script>
