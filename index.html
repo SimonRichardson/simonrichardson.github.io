@@ -877,6 +877,11 @@
                     currentBgColor = this.dataset.color;
                     document.body.style.backgroundColor = currentBgColor;
                     document.getElementById("color-preview").style.backgroundColor = currentBgColor;
+                    // Update icon label backgrounds if on toys page.
+                    var labels = document.querySelectorAll(".icon-label");
+                    for (var i = 0; i < labels.length; i++) {
+                        labels[i].style.backgroundColor = currentBgColor;
+                    }
                     savePrefs();
                 });
                 paletteEl.appendChild(swatch);
@@ -913,9 +918,15 @@
             });
             document.getElementById("pref-clear-cookies").addEventListener("click", function() {
                 document.cookie = "sitePrefs=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie = "toyIconPositions=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
                 document.body.style.backgroundColor = "#1d1d1d";
                 currentBgColor = "#1d1d1d";
                 document.getElementById("color-preview").style.backgroundColor = currentBgColor;
+                // Reset icon label backgrounds if on toys page.
+                var labels = document.querySelectorAll(".icon-label");
+                for (var i = 0; i < labels.length; i++) {
+                    labels[i].style.backgroundColor = "#1d1d1d";
+                }
             });
 
             // Undock buttons - all buttons with class dock-undock-btn trigger undock.

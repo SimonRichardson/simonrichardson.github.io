@@ -1,18 +1,524 @@
-<h1>Toys</h1>
-<p>Interactive canvas experiments and simulations.</p>
-<ul>
-    <li><a href="#Toys/Gravitas">Gravitas</a> — Soft-body physics with bouncing balls</li>
-    <li><a href="#Toys/Ribbons">Ribbons</a> — Flowing ribbon trails</li>
-    <li><a href="#Toys/Orbit">Orbit</a> — Orbital mechanics simulation</li>
-    <li><a href="#Toys/Plane">Plane</a> — 3D arena with bouncing balls and pendulum</li>
-    <li><a href="#Toys/Terrain">Terrain</a> — Procedural terrain generation</li>
-    <li><a href="#Toys/Waves">Waves</a> — Wave interference patterns</li>
-    <li><a href="#Toys/Glyphs">Glyphs</a> — 3D glyph physics with quaternions</li>
-    <li><a href="#Toys/CMYK">CMYK</a> — CMYK colour separation rendering</li>
-    <li><a href="#Toys/Raft">Raft</a> — Raft consensus simulation in 3D</li>
-    <li><a href="#Toys/Rope">Rope</a> — 3D bezier rope with sinusoidal motion</li>
-    <li><a href="#Toys/Lines">Lines</a> — 3D ribbon winding through space</li>
-    <li><a href="#Toys/Collab">Collab</a> — Collaborative drawing canvas via P2P</li>
-    <li><a href="#Toys/Rain">Rain</a> — Raindrops on a pond with 3D ripples</li>
-    <li><a href="#Toys/Waves Deux">Waves Deux</a> — Gerstner wave simulation on a 3D plane</li>
-</ul>
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>Interactive canvas experiments. Double-click an icon to open. Drag icons to rearrange.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <button id="setting-reset-positions">Reset Positions</button>
+                <button id="setting-regen-thumbnails">Regenerate Images</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="toys-desktop"></div>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    // --- Cookie helpers ---
+    function setCookie(name, value, days) {
+        var expires = "";
+        if (days) {
+            var d = new Date();
+            d.setTime(d.getTime() + days * 86400000);
+            expires = "; expires=" + d.toUTCString();
+        }
+        document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/; SameSite=Lax";
+    }
+    function getCookie(name) {
+        var match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+        return match ? decodeURIComponent(match[2]) : null;
+    }
+
+    // Read background colour from site preferences cookie.
+    var labelBgColor = "#1d1d1d";
+    try {
+        var prefsRaw = getCookie("sitePrefs");
+        if (prefsRaw) {
+            var prefs = JSON.parse(prefsRaw);
+            if (prefs.bgColor) labelBgColor = prefs.bgColor;
+        }
+    } catch(e) {}
+
+    var toys = [
+        { name: "Gravitas", page: "pages/toys001.html", route: "Toys/Gravitas" },
+        { name: "Ribbons", page: "pages/toys002.html", route: "Toys/Ribbons" },
+        { name: "Orbit", page: "pages/toys003.html", route: "Toys/Orbit" },
+        { name: "Plane", page: "pages/toys004.html", route: "Toys/Plane" },
+        { name: "Terrain", page: "pages/toys005.html", route: "Toys/Terrain" },
+        { name: "Waves", page: "pages/toys006.html", route: "Toys/Waves" },
+        { name: "Glyphs", page: "pages/toys007.html", route: "Toys/Glyphs" },
+        { name: "CMYK", page: "pages/toys008.html", route: "Toys/CMYK" },
+        { name: "Raft", page: "pages/toys009.html", route: "Toys/Raft" },
+        { name: "Rope", page: "pages/toys010.html", route: "Toys/Rope" },
+        { name: "Lines", page: "pages/toys011.html", route: "Toys/Lines" },
+        { name: "Collab", page: "pages/toys012.html", route: "Toys/Collab" },
+        { name: "Rain", page: "pages/toys013.html", route: "Toys/Rain" },
+        { name: "Waves Deux", page: "pages/toys014.html", route: "Toys/Waves Deux" }
+    ];
+
+    var ICON_SIZE = 96;
+    var THUMB_SIZE = 60;
+    var GRID_COLS = 5;
+    var GRID_SPACING_X = 120;
+    var GRID_SPACING_Y = 130;
+    var GRID_OFFSET_X = 40;
+    var GRID_OFFSET_Y = 30;
+    var CAPTURE_FRAMES = 60;
+    var RENDER_W = 320;
+    var RENDER_H = 240;
+
+    var desktop = document.getElementById("toys-desktop");
+    var selectedIcon = null;
+    var icons = [];
+
+    // Load saved icon positions from cookie.
+    var savedPositions = {};
+    try {
+        var raw = getCookie("toyIconPositions");
+        if (raw) savedPositions = JSON.parse(raw);
+    } catch(e) {}
+
+    function savePositions() {
+        var positions = {};
+        for (var i = 0; i < icons.length; i++) {
+            positions[icons[i].dataset.name] = {
+                x: parseInt(icons[i].style.left, 10),
+                y: parseInt(icons[i].style.top, 10)
+            };
+        }
+        setCookie("toyIconPositions", JSON.stringify(positions), 365);
+    }
+
+    // Create icon elements.
+    for (var i = 0; i < toys.length; i++) {
+        var toy = toys[i];
+        var icon = document.createElement("div");
+        icon.className = "icon";
+        icon.tabIndex = 0;
+        icon.dataset.name = toy.name;
+        icon.dataset.route = toy.route;
+        icon.dataset.page = toy.page;
+
+        var thumb = document.createElement("div");
+        thumb.className = "icon-thumb";
+        var img = document.createElement("canvas");
+        img.width = THUMB_SIZE;
+        img.height = THUMB_SIZE;
+        img.className = "icon-canvas";
+        // Draw loading placeholder.
+        var pctx = img.getContext("2d");
+        pctx.fillStyle = "#222";
+        pctx.fillRect(0, 0, THUMB_SIZE, THUMB_SIZE);
+        pctx.fillStyle = "#555";
+        pctx.font = "10px sans-serif";
+        pctx.textAlign = "center";
+        pctx.fillText("...", THUMB_SIZE / 2, THUMB_SIZE / 2 + 3);
+        thumb.appendChild(img);
+
+        var label = document.createElement("div");
+        label.className = "icon-label";
+        label.textContent = toy.name;
+        label.style.backgroundColor = labelBgColor;
+
+        icon.appendChild(thumb);
+        icon.appendChild(label);
+
+        // Position from saved or grid default.
+        var col = i % GRID_COLS;
+        var row = Math.floor(i / GRID_COLS);
+        var defaultX = GRID_OFFSET_X + col * GRID_SPACING_X;
+        var defaultY = GRID_OFFSET_Y + row * GRID_SPACING_Y;
+        if (savedPositions[toy.name]) {
+            icon.style.left = savedPositions[toy.name].x + "px";
+            icon.style.top = savedPositions[toy.name].y + "px";
+        } else {
+            icon.style.left = defaultX + "px";
+            icon.style.top = defaultY + "px";
+        }
+
+        desktop.appendChild(icon);
+        icons.push(icon);
+    }
+
+    // Select the first icon by default.
+    if (icons.length > 0) {
+        icons[0].classList.add("selected");
+        selectedIcon = icons[0];
+    }
+
+    // Reset positions button.
+    document.getElementById("setting-reset-positions").addEventListener("click", function() {
+        for (var i = 0; i < icons.length; i++) {
+            var col = i % GRID_COLS;
+            var row = Math.floor(i / GRID_COLS);
+            icons[i].style.left = (GRID_OFFSET_X + col * GRID_SPACING_X) + "px";
+            icons[i].style.top = (GRID_OFFSET_Y + row * GRID_SPACING_Y) + "px";
+        }
+        savePositions();
+    });
+
+    // Regenerate thumbnails button.
+    document.getElementById("setting-regen-thumbnails").addEventListener("click", function() {
+        // Clear cache and re-queue all toys.
+        captureCache = {};
+        try { sessionStorage.removeItem("toyThumbnails"); } catch(e) {}
+        captureQueue = toys.slice();
+        captureAborted = false;
+        // Reset canvases to placeholder.
+        for (var i = 0; i < icons.length; i++) {
+            var c = icons[i].querySelector(".icon-canvas");
+            var ctx = c.getContext("2d");
+            ctx.fillStyle = "#222";
+            ctx.fillRect(0, 0, THUMB_SIZE, THUMB_SIZE);
+            ctx.fillStyle = "#555";
+            ctx.font = "10px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("...", THUMB_SIZE / 2, THUMB_SIZE / 2 + 3);
+        }
+        captureNext();
+    });
+
+    // Dragging.
+    var dragIcon = null;
+    var dragOffsetX = 0;
+    var dragOffsetY = 0;
+    var dragStartX = 0;
+    var dragStartY = 0;
+    var hasMoved = false;
+    var topZIndex = 1;
+
+    desktop.addEventListener("mousedown", function(e) {
+        var icon = e.target.closest(".icon");
+        if (!icon) {
+            // Clicked empty desktop - deselect.
+            if (selectedIcon) {
+                selectedIcon.classList.remove("selected");
+                selectedIcon = null;
+            }
+            return;
+        }
+        dragIcon = icon;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        dragOffsetX = e.clientX - parseInt(icon.style.left, 10);
+        dragOffsetY = e.clientY - parseInt(icon.style.top, 10);
+        hasMoved = false;
+        icon.style.zIndex = ++topZIndex;
+        e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (!dragIcon) return;
+        var dx = e.clientX - dragStartX;
+        var dy = e.clientY - dragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+        if (!hasMoved) return;
+        dragIcon.classList.add("dragging");
+        dragIcon.style.left = (e.clientX - dragOffsetX) + "px";
+        dragIcon.style.top = (e.clientY - dragOffsetY) + "px";
+    });
+
+    document.addEventListener("mouseup", function() {
+        if (!dragIcon) return;
+        dragIcon.classList.remove("dragging");
+        // Only select on click (no drag).
+        if (!hasMoved) {
+            if (selectedIcon && selectedIcon !== dragIcon) {
+                selectedIcon.classList.remove("selected");
+            }
+            dragIcon.classList.add("selected");
+            selectedIcon = dragIcon;
+        } else {
+            savePositions();
+        }
+        dragIcon = null;
+    });
+
+    // Double-click to open.
+    desktop.addEventListener("dblclick", function(e) {
+        var icon = e.target.closest(".icon");
+        if (icon) {
+            window.location.hash = icon.dataset.route;
+        }
+    });
+
+    // Touch support for dragging.
+    desktop.addEventListener("touchstart", function(e) {
+        var icon = e.target.closest(".icon");
+        if (!icon) {
+            if (selectedIcon) {
+                selectedIcon.classList.remove("selected");
+                selectedIcon = null;
+            }
+            return;
+        }
+        var touch = e.touches[0];
+        dragIcon = icon;
+        dragStartX = touch.clientX;
+        dragStartY = touch.clientY;
+        dragOffsetX = touch.clientX - parseInt(icon.style.left, 10);
+        dragOffsetY = touch.clientY - parseInt(icon.style.top, 10);
+        hasMoved = false;
+        icon.style.zIndex = ++topZIndex;
+        e.preventDefault();
+    });
+
+    document.addEventListener("touchmove", function(e) {
+        if (!dragIcon) return;
+        var touch = e.touches[0];
+        var dx = touch.clientX - dragStartX;
+        var dy = touch.clientY - dragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+        if (!hasMoved) return;
+        dragIcon.classList.add("dragging");
+        dragIcon.style.left = (touch.clientX - dragOffsetX) + "px";
+        dragIcon.style.top = (touch.clientY - dragOffsetY) + "px";
+    });
+
+    document.addEventListener("touchend", function() {
+        if (!dragIcon) return;
+        dragIcon.classList.remove("dragging");
+        if (!hasMoved) {
+            if (selectedIcon && selectedIcon !== dragIcon) {
+                selectedIcon.classList.remove("selected");
+            }
+            dragIcon.classList.add("selected");
+            selectedIcon = dragIcon;
+        } else {
+            savePositions();
+        }
+        dragIcon = null;
+    });
+
+    // Thumbnail generation: render each toy offscreen and capture a frame.
+    // We process them sequentially to avoid conflicts with the shared "home-canvas" id.
+    var captureQueue = toys.slice();
+    var captureCache = {};
+    var captureAborted = false;
+    try {
+        var cacheRaw = sessionStorage.getItem("toyThumbnails");
+        if (cacheRaw) captureCache = JSON.parse(cacheRaw);
+    } catch(e) {}
+
+    // Register cleanup so navigating away stops captures.
+    window.__homeCanvasCleanup = function() {
+        captureAborted = true;
+        captureQueue = [];
+    };
+
+    function applyThumbnail(name, dataUrl) {
+        for (var i = 0; i < icons.length; i++) {
+            if (icons[i].dataset.name === name) {
+                var canvas = icons[i].querySelector(".icon-canvas");
+                var img = new Image();
+                img.onload = (function(c) {
+                    return function() {
+                        var ctx = c.getContext("2d");
+                        ctx.clearRect(0, 0, THUMB_SIZE, THUMB_SIZE);
+                        // Draw slightly zoomed out (80%) and centered.
+                        var scale = 0.8;
+                        var dw = THUMB_SIZE * scale;
+                        var dh = THUMB_SIZE * scale;
+                        var dx = (THUMB_SIZE - dw) / 2;
+                        var dy = (THUMB_SIZE - dh) / 2;
+                        // Fill background.
+                        ctx.fillStyle = "#111";
+                        ctx.fillRect(0, 0, THUMB_SIZE, THUMB_SIZE);
+                        ctx.drawImage(this, dx, dy, dw, dh);
+                    };
+                })(canvas);
+                img.src = dataUrl;
+                break;
+            }
+        }
+    }
+
+    // Check cache first.
+    for (var name in captureCache) {
+        applyThumbnail(name, captureCache[name]);
+        captureQueue = captureQueue.filter(function(t) { return t.name !== name; });
+    }
+
+    function captureNext() {
+        if (captureAborted || captureQueue.length === 0) return;
+        var toy = captureQueue.shift();
+
+        fetch(toy.page)
+            .then(function(res) { return res.text(); })
+            .then(function(html) {
+                // Create a hidden container for the toy.
+                var container = document.createElement("div");
+                container.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:" + RENDER_W + "px;height:" + RENDER_H + "px;overflow:hidden;pointer-events:none;";
+                container.innerHTML = html;
+
+                // Hide settings panel - keep elements accessible for scripts.
+                var settingsEl = container.querySelector("#settings-panel");
+                if (settingsEl) settingsEl.style.display = "none";
+                var raftLog = container.querySelector("#raft-log-panel");
+                if (raftLog) raftLog.style.display = "none";
+
+                // Find or create the canvas.
+                var toyCanvas = container.querySelector("#home-canvas");
+                if (!toyCanvas) {
+                    toyCanvas = document.createElement("canvas");
+                    toyCanvas.id = "home-canvas";
+                    container.appendChild(toyCanvas);
+                }
+                toyCanvas.width = RENDER_W;
+                toyCanvas.height = RENDER_H;
+                toyCanvas.style.width = RENDER_W + "px";
+                toyCanvas.style.height = RENDER_H + "px";
+
+                document.body.appendChild(container);
+
+                // Stub out elements the script might look for.
+                var stubIds = [
+                    "settings-panel", "settings-grab", "settings-grab-track",
+                    "settings-minimize", "settings-body", "setting-gravity",
+                    "setting-balls", "setting-speed", "setting-ribbons",
+                    "setting-autorotate", "setting-apply", "setting-save",
+                    "setting-bounce", "setting-cmyk", "setting-segments",
+                    "setting-amplitude", "setting-frequency", "setting-length",
+                    "setting-width", "setting-radius", "setting-detail",
+                    "setting-rotation", "setting-color", "setting-thickness",
+                    "setting-count", "setting-wind", "setting-rain",
+                    "setting-ripples", "setting-wavelength", "setting-steepness",
+                    "setting-direction", "setting-numwaves",
+                    "raft-log-panel", "raft-log-text", "raft-log-clear",
+                    "raft-log-chrome", "raft-log-content", "raft-log-resize",
+                    "raft-log-resize-corner", "raft-log-resize-right",
+                    "raft-log-resize-row"
+                ];
+                for (var i = 0; i < stubIds.length; i++) {
+                    if (!container.querySelector("#" + stubIds[i])) {
+                        var stub = document.createElement("div");
+                        stub.id = stubIds[i];
+                        stub.style.display = "none";
+                        // Add type/value for input stubs.
+                        if (stubIds[i].indexOf("setting-") === 0) {
+                            stub = document.createElement("input");
+                            stub.id = stubIds[i];
+                            stub.type = "range";
+                            stub.value = "50";
+                            stub.style.display = "none";
+                        }
+                        container.appendChild(stub);
+                    }
+                }
+
+                // Override getElementById to look inside our container first.
+                var origGetById = document.getElementById.bind(document);
+                document.getElementById = function(id) {
+                    var el = container.querySelector("#" + id);
+                    if (el) return el;
+                    return origGetById(id);
+                };
+
+                // Stub makeDraggable for this context.
+                var origMakeDraggable = window.makeDraggable;
+                window.makeDraggable = function() {};
+
+                // Save and clear our abort cleanup so the toy script can set its own.
+                var savedCleanup = window.__homeCanvasCleanup;
+                window.__homeCanvasCleanup = null;
+
+                // Clear any prior animation.
+                if (window.__homeCanvasAnimId) {
+                    cancelAnimationFrame(window.__homeCanvasAnimId);
+                    window.__homeCanvasAnimId = null;
+                }
+
+                // Execute the scripts.
+                var scripts = container.querySelectorAll("script");
+                scripts.forEach(function(oldScript) {
+                    var newScript = document.createElement("script");
+                    newScript.textContent = oldScript.textContent;
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+
+                // Wait for frames to render, then capture.
+                var frameCount = 0;
+                function waitForFrames() {
+                    if (captureAborted) {
+                        // Clean up and bail.
+                        if (window.__homeCanvasAnimId) {
+                            cancelAnimationFrame(window.__homeCanvasAnimId);
+                            window.__homeCanvasAnimId = null;
+                        }
+                        document.getElementById = origGetById;
+                        window.makeDraggable = origMakeDraggable;
+                        if (container.parentNode) container.parentNode.removeChild(container);
+                        return;
+                    }
+                    frameCount++;
+                    if (frameCount >= CAPTURE_FRAMES) {
+                        // Capture the canvas.
+                        try {
+                            var dataUrl = toyCanvas.toDataURL("image/png");
+                            captureCache[toy.name] = dataUrl;
+                            applyThumbnail(toy.name, dataUrl);
+                            // Save cache.
+                            try {
+                                sessionStorage.setItem("toyThumbnails", JSON.stringify(captureCache));
+                            } catch(e) {}
+                        } catch(e) {}
+
+                        // Cleanup.
+                        if (window.__homeCanvasAnimId) {
+                            cancelAnimationFrame(window.__homeCanvasAnimId);
+                            window.__homeCanvasAnimId = null;
+                        }
+                        // Call the toy's own cleanup (intervals, connections, etc).
+                        if (window.__homeCanvasCleanup) {
+                            window.__homeCanvasCleanup();
+                            window.__homeCanvasCleanup = null;
+                        }
+                        document.getElementById = origGetById;
+                        window.makeDraggable = origMakeDraggable;
+                        // Restore our abort cleanup.
+                        window.__homeCanvasCleanup = savedCleanup;
+                        document.body.removeChild(container);
+
+                        // Process next toy.
+                        setTimeout(captureNext, 50);
+                    } else {
+                        requestAnimationFrame(waitForFrames);
+                    }
+                }
+                requestAnimationFrame(waitForFrames);
+            })
+            .catch(function() {
+                // On failure, skip and continue.
+                setTimeout(captureNext, 50);
+            });
+    }
+
+    // Start capturing thumbnails.
+    captureNext();
+})();
+</script>
