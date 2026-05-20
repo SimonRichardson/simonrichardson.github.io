@@ -65,21 +65,21 @@
     } catch(e) {}
 
     var toys = [
-        { name: "Gravitas", page: "pages/toys001.html", route: "Toys/Gravitas" },
-        { name: "Ribbons", page: "pages/toys002.html", route: "Toys/Ribbons" },
-        { name: "Orbit", page: "pages/toys003.html", route: "Toys/Orbit" },
-        { name: "Plane", page: "pages/toys004.html", route: "Toys/Plane" },
-        { name: "Terrain", page: "pages/toys005.html", route: "Toys/Terrain" },
-        { name: "Waves", page: "pages/toys006.html", route: "Toys/Waves" },
-        { name: "Glyphs", page: "pages/toys007.html", route: "Toys/Glyphs" },
-        { name: "CMYK", page: "pages/toys008.html", route: "Toys/CMYK" },
-        { name: "Raft", page: "pages/toys009.html", route: "Toys/Raft" },
-        { name: "Rope", page: "pages/toys010.html", route: "Toys/Rope" },
-        { name: "Lines", page: "pages/toys011.html", route: "Toys/Lines" },
-        { name: "Collab", page: "pages/toys012.html", route: "Toys/Collab" },
-        { name: "Rain", page: "pages/toys013.html", route: "Toys/Rain" },
-        { name: "Waves Deux", page: "pages/toys014.html", route: "Toys/Waves Deux" },
-        { name: "Trending", page: "pages/toys015.html", route: "Toys/Trending" }
+        { name: "Gravitas", page: "pages/toys/toys001.html", route: "Toys/Gravitas" },
+        { name: "Ribbons", page: "pages/toys/toys002.html", route: "Toys/Ribbons" },
+        { name: "Orbit", page: "pages/toys/toys003.html", route: "Toys/Orbit" },
+        { name: "Plane", page: "pages/toys/toys004.html", route: "Toys/Plane" },
+        { name: "Terrain", page: "pages/toys/toys005.html", route: "Toys/Terrain" },
+        { name: "Waves", page: "pages/toys/toys006.html", route: "Toys/Waves" },
+        { name: "Glyphs", page: "pages/toys/toys007.html", route: "Toys/Glyphs" },
+        { name: "CMYK", page: "pages/toys/toys008.html", route: "Toys/CMYK" },
+        { name: "Raft", page: "pages/toys/toys009.html", route: "Toys/Raft" },
+        { name: "Rope", page: "pages/toys/toys010.html", route: "Toys/Rope" },
+        { name: "Lines", page: "pages/toys/toys011.html", route: "Toys/Lines" },
+        { name: "Collab", page: "pages/toys/toys012.html", route: "Toys/Collab" },
+        { name: "Rain", page: "pages/toys/toys013.html", route: "Toys/Rain" },
+        { name: "Waves Deux", page: "pages/toys/toys014.html", route: "Toys/Waves Deux" },
+        { name: "Trending", page: "pages/toys/toys015.html", route: "Toys/Trending" }
     ];
 
     var ICON_SIZE = 96;
@@ -326,10 +326,21 @@
         if (cacheRaw) captureCache = JSON.parse(cacheRaw);
     } catch(e) {}
 
+    var captureFrameId = null;
+    var captureContainer = null;
+
     // Register cleanup so navigating away stops captures.
     window.__homeCanvasCleanup = function() {
         captureAborted = true;
         captureQueue = [];
+        if (captureFrameId) {
+            cancelAnimationFrame(captureFrameId);
+            captureFrameId = null;
+        }
+        if (captureContainer && captureContainer.parentNode) {
+            captureContainer.parentNode.removeChild(captureContainer);
+            captureContainer = null;
+        }
     };
 
     function applyThumbnail(name, dataUrl) {
@@ -372,6 +383,7 @@
         fetch(toy.page)
             .then(function(res) { return res.text(); })
             .then(function(html) {
+                if (captureAborted) return;
                 // Create a hidden container for the toy.
                 var container = document.createElement("div");
                 container.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:" + RENDER_W + "px;height:" + RENDER_H + "px;overflow:hidden;pointer-events:none;";
@@ -396,6 +408,7 @@
                 toyCanvas.style.height = RENDER_H + "px";
 
                 document.body.appendChild(container);
+                captureContainer = container;
 
                 // Stub out elements the script might look for.
                 var stubIds = [
@@ -467,6 +480,7 @@
                 function waitForFrames() {
                     if (captureAborted) {
                         // Clean up and bail.
+                        captureFrameId = null;
                         if (window.__homeCanvasAnimId) {
                             cancelAnimationFrame(window.__homeCanvasAnimId);
                             window.__homeCanvasAnimId = null;
@@ -474,10 +488,12 @@
                         document.getElementById = origGetById;
                         window.makeDraggable = origMakeDraggable;
                         if (container.parentNode) container.parentNode.removeChild(container);
+                        captureContainer = null;
                         return;
                     }
                     frameCount++;
                     if (frameCount >= CAPTURE_FRAMES) {
+                        captureFrameId = null;
                         // Capture the canvas.
                         try {
                             var dataUrl = toyCanvas.toDataURL("image/png");
@@ -504,14 +520,15 @@
                         // Restore our abort cleanup.
                         window.__homeCanvasCleanup = savedCleanup;
                         document.body.removeChild(container);
+                        captureContainer = null;
 
                         // Process next toy.
                         setTimeout(captureNext, 50);
                     } else {
-                        requestAnimationFrame(waitForFrames);
+                        captureFrameId = requestAnimationFrame(waitForFrames);
                     }
                 }
-                requestAnimationFrame(waitForFrames);
+                captureFrameId = requestAnimationFrame(waitForFrames);
             })
             .catch(function() {
                 // On failure, skip and continue.
