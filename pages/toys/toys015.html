@@ -88,6 +88,7 @@
             var entries = JSON.parse(raw);
             if (!entries || entries.length === 0) return false;
             var loaded = 0;
+            var total = entries.length;
             for (var i = 0; i < entries.length; i++) {
                 (function(entry) {
                     var offscreen = document.createElement("canvas");
@@ -98,10 +99,14 @@
                         var octx = offscreen.getContext("2d");
                         octx.drawImage(img, 0, 0);
                         loaded++;
-                        if (loaded === entries.length) {
+                        draw();
+                        if (loaded === total) {
                             setStatus("Restored " + images.length + " cached images.");
-                            draw();
                         }
+                    };
+                    img.onerror = function() {
+                        loaded++;
+                        if (loaded === total) draw();
                     };
                     img.src = entry.data;
                     images.push({ canvas: offscreen, repo: entry.repo, path: entry.path });
