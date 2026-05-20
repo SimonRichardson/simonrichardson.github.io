@@ -1,0 +1,549 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>Fetches code from trending GitHub repositories, reads binary blobs, converts bytes to hex colour values, and renders them as an infinite scrolling grid of pixel images.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Status</div>
+                <textarea id="setting-status" readonly style="width:100%;height:80px;resize:vertical;font-size:11px;font-family:monospace;"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    // --- Settings panel logic ---
+    var settingsPanel = document.getElementById("settings-panel");
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    var statusEl = document.getElementById("setting-status");
+    function setStatus(msg) {
+        if (!statusEl) return;
+        statusEl.value += msg + "\n";
+        statusEl.scrollTop = statusEl.scrollHeight;
+    }
+
+    // --- Constants ---
+    var IMG_W = 300;
+    var IMG_H = 200;
+    var PIXELS_PER_IMAGE = IMG_W * IMG_H;
+    var BYTES_PER_IMAGE = PIXELS_PER_IMAGE * 3;
+
+    // --- State ---
+    var scrollY = 0;
+    var images = [];       // Array of { canvas, repo, path }
+    var repos = [];
+    var treeCache = {};    // repo full_name -> shuffled paths array
+    var loading = false;
+    var exhausted = false;
+    var repoIndex = 0;
+
+    // --- Session storage cache ---
+    var CACHE_KEY = "trendingImageCache";
+
+    function saveToCache() {
+        try {
+            var entries = [];
+            for (var i = 0; i < images.length; i++) {
+                entries.push({
+                    data: images[i].canvas.toDataURL("image/png"),
+                    repo: images[i].repo,
+                    path: images[i].path
+                });
+            }
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(entries));
+        } catch (e) {}
+    }
+
+    function loadFromCache() {
+        try {
+            var raw = sessionStorage.getItem(CACHE_KEY);
+            if (!raw) return false;
+            var entries = JSON.parse(raw);
+            if (!entries || entries.length === 0) return false;
+            var loaded = 0;
+            for (var i = 0; i < entries.length; i++) {
+                (function(entry) {
+                    var offscreen = document.createElement("canvas");
+                    offscreen.width = IMG_W;
+                    offscreen.height = IMG_H;
+                    var img = new Image();
+                    img.onload = function() {
+                        var octx = offscreen.getContext("2d");
+                        octx.drawImage(img, 0, 0);
+                        loaded++;
+                        if (loaded === entries.length) {
+                            setStatus("Restored " + images.length + " cached images.");
+                            draw();
+                        }
+                    };
+                    img.src = entry.data;
+                    images.push({ canvas: offscreen, repo: entry.repo, path: entry.path });
+                })(entries[i]);
+            }
+            return true;
+        } catch (e) { return false; }
+    }
+
+    // --- Grid helpers ---
+    function getCols() {
+        return Math.max(1, Math.ceil(canvas.width / IMG_W));
+    }
+
+    function visibleRows() {
+        return Math.ceil(canvas.height / IMG_H) + 1;
+    }
+
+    function totalContentHeight() {
+        var cols = getCols();
+        var rows = Math.ceil(images.length / cols);
+        return rows * IMG_H;
+    }
+
+    // --- Drawing ---
+    function draw() {
+        if (!canvas.width || !canvas.height) return;
+        ctx.fillStyle = "#0d0d0d";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        var cols = getCols();
+
+        for (var i = 0; i < images.length; i++) {
+            var col = i % cols;
+            var row = Math.floor(i / cols);
+            var x = col * IMG_W;
+            var y = row * IMG_H - scrollY;
+
+            if (y + IMG_H < 0 || y > canvas.height) continue;
+
+            ctx.drawImage(images[i].canvas, x, y);
+        }
+
+        // Loading indicator at bottom.
+        if (loading) {
+            var bottomY = totalContentHeight() - scrollY;
+            if (bottomY < canvas.height + 50) {
+                ctx.fillStyle = "#666";
+                ctx.font = "12px monospace";
+                ctx.textAlign = "center";
+                ctx.fillText("Loading blobs...", canvas.width / 2, Math.min(bottomY + 20, canvas.height - 10));
+            }
+        }
+    }
+
+    // --- Scrolling ---
+    function handleWheel(e) {
+        scrollY += e.deltaY;
+        var maxScroll = Math.max(0, totalContentHeight() - canvas.height);
+        if (scrollY < 0) scrollY = 0;
+        if (scrollY > maxScroll) scrollY = maxScroll;
+        e.preventDefault();
+        draw();
+        maybeLoadMore();
+    }
+    canvas.addEventListener("wheel", handleWheel);
+
+    // Touch scrolling support.
+    var touchStartY = 0;
+    var touchLastY = 0;
+    canvas.addEventListener("touchstart", function(e) {
+        touchStartY = e.touches[0].clientY;
+        touchLastY = touchStartY;
+    });
+    canvas.addEventListener("touchmove", function(e) {
+        var y = e.touches[0].clientY;
+        var dy = touchLastY - y;
+        touchLastY = y;
+        scrollY += dy;
+        var maxScroll = Math.max(0, totalContentHeight() - canvas.height);
+        if (scrollY < 0) scrollY = 0;
+        if (scrollY > maxScroll) scrollY = maxScroll;
+        e.preventDefault();
+        draw();
+        maybeLoadMore();
+    });
+
+    // --- Modal for enlarged image view ---
+    var modalOverlay = document.createElement("div");
+    modalOverlay.style.cssText = "display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;";
+    var modalCanvas = document.createElement("canvas");
+    modalCanvas.style.cssText = "image-rendering:pixelated;border:2px solid #444;";
+    modalOverlay.appendChild(modalCanvas);
+    var modalLabel = document.createElement("div");
+    modalLabel.style.cssText = "margin-top:16px;text-align:center;color:#ddd;font:14px monospace;padding:8px;background:rgba(0,0,0,0.6);border-radius:4px;";
+    modalOverlay.appendChild(modalLabel);
+    canvas.parentElement.appendChild(modalOverlay);
+
+    modalOverlay.addEventListener("click", function(e) {
+        if (e.target.tagName === "A") return;
+        modalOverlay.style.display = "none";
+    });
+
+    function getImageAtPoint(cx, cy) {
+        var cols = getCols();
+        var col = Math.floor(cx / IMG_W);
+        var row = Math.floor((cy + scrollY) / IMG_H);
+        var idx = row * cols + col;
+        if (idx >= 0 && idx < images.length && col < cols) return images[idx];
+        return null;
+    }
+
+    canvas.addEventListener("click", function(e) {
+        var rect = canvas.getBoundingClientRect();
+        var cx = e.clientX - rect.left;
+        var cy = e.clientY - rect.top;
+        var img = getImageAtPoint(cx, cy);
+        if (!img) return;
+
+        // Scale up to fill viewport with room for label below.
+        var availH = window.innerHeight * 0.7;
+        var scale = Math.min(
+            Math.floor(window.innerWidth * 0.85 / IMG_W),
+            Math.floor(availH / IMG_H)
+        );
+        if (scale < 1) scale = 1;
+        modalCanvas.width = IMG_W * scale;
+        modalCanvas.height = IMG_H * scale;
+        var mctx = modalCanvas.getContext("2d");
+        mctx.imageSmoothingEnabled = false;
+        mctx.drawImage(img.canvas, 0, 0, modalCanvas.width, modalCanvas.height);
+        modalLabel.innerHTML = "<strong>" + img.repo + "</strong><br>" + img.path + "<br><a href='https://github.com/" + img.repo + "/blob/HEAD/" + img.path + "' target='_blank' style='color:#6af;text-decoration:underline;'>View on GitHub</a>";
+        modalOverlay.style.display = "flex";
+    });
+
+    // --- Fetch trending repos by scraping GitHub trending page ---
+    var trendingSuffix = ["", "?since=weekly", "?since=monthly"];
+    var trendingRound = 0;
+    var seenRepos = {};
+
+    function fetchTrending() {
+        setStatus("Fetching trending repos...");
+        return fetchTrendingPage(trendingSuffix[0]);
+    }
+
+    function fetchTrendingPage(suffix) {
+        // Try scraping the trending page via CORS proxy.
+        var proxyUrl = "https://corsproxy.io/?" + encodeURIComponent("https://github.com/trending" + suffix);
+        return fetch(proxyUrl)
+            .then(function(r) {
+                if (!r.ok) throw new Error("Proxy failed");
+                return r.text();
+            })
+            .then(function(html) {
+                var parsed = parseTrendingHtml(html);
+                if (parsed.length > 0) return dedupRepos(parsed);
+                throw new Error("No repos parsed");
+            })
+            .catch(function() {
+                // Fallback: use GitHub Search API for recently popular repos.
+                setStatus("Proxy unavailable, using GitHub API...");
+                var weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+                return fetch("https://api.github.com/search/repositories?q=created:>" + weekAgo + "&sort=stars&order=desc&per_page=30")
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        return dedupRepos((data.items || []).map(function(r) { return r.full_name; }));
+                    });
+            });
+    }
+
+    function dedupRepos(repoList) {
+        var fresh = [];
+        for (var i = 0; i < repoList.length; i++) {
+            if (!seenRepos[repoList[i]]) {
+                seenRepos[repoList[i]] = true;
+                fresh.push(repoList[i]);
+            }
+        }
+        return fresh;
+    }
+
+    function loadNextTrendingRound() {
+        trendingRound++;
+        if (trendingRound >= trendingSuffix.length) {
+            exhausted = true;
+            setStatus(images.length + " images loaded. All trending rounds exhausted.");
+            return;
+        }
+        var label = trendingRound === 1 ? "weekly" : "monthly";
+        setStatus("Loading " + label + " trending repos...");
+        fetchTrendingPage(trendingSuffix[trendingRound]).then(function(repoList) {
+            if (repoList.length === 0) {
+                loadNextTrendingRound();
+                return;
+            }
+            // Shuffle and append new repos.
+            for (var i = repoList.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var tmp = repoList[i]; repoList[i] = repoList[j]; repoList[j] = tmp;
+            }
+            repos = repos.concat(repoList);
+            setStatus("Added " + repoList.length + " " + label + " repos. " + repos.length + " total.");
+            repoIndex = repos.length - repoList.length;
+            loadMoreImages();
+        }).catch(function() {
+            loadNextTrendingRound();
+        });
+    }
+
+    function parseTrendingHtml(html) {
+        var results = [];
+        // Trending page has article elements with h2 > a links like "/owner/repo"
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, "text/html");
+        var links = doc.querySelectorAll("h2.h3 a, article h2 a");
+        for (var i = 0; i < links.length; i++) {
+            var href = links[i].getAttribute("href");
+            if (href && href.match(/^\/[^/]+\/[^/]+$/)) {
+                results.push(href.substring(1));
+            }
+        }
+        // Deduplicate.
+        var seen = {};
+        return results.filter(function(r) {
+            if (seen[r]) return false;
+            seen[r] = true;
+            return true;
+        });
+    }
+
+    // --- Fetch repo tree ---
+    // --- Common file paths with weights (higher = tried first) ---
+    var COMMON_PATHS = [
+        { path: "package-lock.json", weight: 10 },
+        { path: "yarn.lock", weight: 9 },
+        { path: "pnpm-lock.yaml", weight: 8 },
+        { path: "go.sum", weight: 9 },
+        { path: "Cargo.lock", weight: 9 },
+        { path: "poetry.lock", weight: 7 },
+        { path: "composer.lock", weight: 7 },
+        { path: "Gemfile.lock", weight: 7 },
+        { path: "flake.lock", weight: 5 },
+        { path: "bun.lockb", weight: 6 },
+        { path: "README.md", weight: 12 },
+        { path: "LICENSE", weight: 11 },
+        { path: "package.json", weight: 3 },
+        { path: "src/main.rs", weight: 5 },
+        { path: "src/lib.rs", weight: 5 },
+        { path: "main.go", weight: 5 },
+        { path: "cmd/main.go", weight: 4 },
+        { path: "index.js", weight: 4 },
+        { path: "index.ts", weight: 4 },
+        { path: "src/index.ts", weight: 4 },
+        { path: "src/index.js", weight: 4 },
+        { path: "app/main.py", weight: 4 },
+        { path: "setup.py", weight: 3 },
+        { path: "Makefile", weight: 3 },
+        { path: "CMakeLists.txt", weight: 3 }
+    ];
+
+    // --- Try fetching files from a repo (no API, just raw CDN) ---
+    function fetchFilesFromRepo(repoFullName) {
+        if (treeCache[repoFullName]) {
+            return Promise.resolve(treeCache[repoFullName]);
+        }
+        // Weighted shuffle: higher weight = more likely to appear early.
+        var entries = COMMON_PATHS.slice();
+        entries.sort(function(a, b) {
+            return (b.weight + Math.random() * 4) - (a.weight + Math.random() * 4);
+        });
+        var paths = entries.map(function(e) { return e.path; });
+        treeCache[repoFullName] = paths;
+        return Promise.resolve(paths);
+    }
+
+    // --- Fetch raw file content via CDN (no rate limit) ---
+    function fetchBlob(repoFullName, path) {
+        var url = "https://raw.githubusercontent.com/" + repoFullName + "/HEAD/" + path;
+        return fetch(url)
+            .then(function(r) {
+                if (!r.ok) throw new Error("fetch failed");
+                return r.arrayBuffer();
+            })
+            .then(function(buf) {
+                var bytes = new Uint8Array(buf);
+                return binaryToImages(bytes, repoFullName, path);
+            })
+            .catch(function() { return []; });
+    }
+
+    // --- Convert byte array to one or more pixel images ---
+    function binaryToImages(bytes, repo, path) {
+        var results = [];
+        var offset = 0;
+
+        while (offset + BYTES_PER_IMAGE <= bytes.length && results.length < 4) {
+            var offscreen = document.createElement("canvas");
+            offscreen.width = IMG_W;
+            offscreen.height = IMG_H;
+            var octx = offscreen.getContext("2d");
+            var imgData = octx.createImageData(IMG_W, IMG_H);
+
+            for (var i = 0; i < PIXELS_PER_IMAGE; i++) {
+                var byteIdx = offset + i * 3;
+                imgData.data[i * 4]     = bytes[byteIdx];
+                imgData.data[i * 4 + 1] = bytes[byteIdx + 1];
+                imgData.data[i * 4 + 2] = bytes[byteIdx + 2];
+                imgData.data[i * 4 + 3] = 255;
+            }
+
+            octx.putImageData(imgData, 0, 0);
+            results.push({ canvas: offscreen, repo: repo, path: path });
+            offset += BYTES_PER_IMAGE;
+        }
+
+        // If we didn't get a full image but have some data, make a partial one.
+        if (results.length === 0 && bytes.length >= 3) {
+            var offscreen = document.createElement("canvas");
+            offscreen.width = IMG_W;
+            offscreen.height = IMG_H;
+            var octx = offscreen.getContext("2d");
+            var imgData = octx.createImageData(IMG_W, IMG_H);
+
+            for (var i = 0; i < PIXELS_PER_IMAGE; i++) {
+                var byteIdx = (i * 3) % bytes.length;
+                imgData.data[i * 4]     = bytes[byteIdx % bytes.length];
+                imgData.data[i * 4 + 1] = bytes[(byteIdx + 1) % bytes.length];
+                imgData.data[i * 4 + 2] = bytes[(byteIdx + 2) % bytes.length];
+                imgData.data[i * 4 + 3] = 255;
+            }
+
+            octx.putImageData(imgData, 0, 0);
+            results.push({ canvas: offscreen, repo: repo, path: path });
+        }
+
+        return results;
+    }
+
+    // --- Load more images ---
+    function maybeLoadMore() {
+        if (loading || exhausted) return;
+        var cols = getCols();
+        var neededRows = visibleRows() + 2;
+        var neededImages = neededRows * cols;
+        if (images.length >= neededImages && scrollY + canvas.height < totalContentHeight() - 200) return;
+        loadMoreImages();
+    }
+
+    var pathIndex = {};  // repo -> next path index to try
+
+    function loadMoreImages() {
+        if (loading || exhausted || repos.length === 0) return;
+        loading = true;
+
+        var repo = repos[repoIndex % repos.length];
+        if (!pathIndex[repo]) pathIndex[repo] = 0;
+
+        setStatus("Fetching from " + repo + "...");
+
+        fetchFilesFromRepo(repo).then(function(paths) {
+            var idx = pathIndex[repo];
+            if (idx >= paths.length) {
+                // Exhausted paths for this repo, move to next.
+                repoIndex++;
+                pathIndex[repo] = 0;
+                loading = false;
+                if (repoIndex < repos.length * 3) loadMoreImages();
+                else loadNextTrendingRound();
+                return;
+            }
+
+            var path = paths[idx];
+            pathIndex[repo] = idx + 1;
+
+            return fetchBlob(repo, path).then(function(newImages) {
+                if (newImages.length > 0) {
+                    images = images.concat(newImages);
+                    setStatus(images.length + " images | " + repos.length + " repos | Scroll for more");
+                    draw();
+                    saveToCache();
+                    // Got images, move to next repo for variety.
+                    repoIndex++;
+                } else {
+                    // File didn't exist or was too small, try next path in same repo.
+                }
+                loading = false;
+                maybeLoadMore();
+            });
+        }).catch(function() {
+            loading = false;
+            repoIndex++;
+            if (repoIndex < repos.length * 3) {
+                setTimeout(loadMoreImages, 100);
+            } else {
+                loadNextTrendingRound();
+            }
+        });
+    }
+
+    // --- Resize (after all state/functions defined) ---
+    function resize() {
+        if (!canvas.parentElement) return;
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        draw();
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // --- Initialise ---
+    var hadCache = loadFromCache();
+
+    fetchTrending().then(function(repoList) {
+        repos = repoList;
+        if (repos.length === 0 && !hadCache) {
+            setStatus("No repos found.");
+            return;
+        }
+        setStatus("Found " + repos.length + " trending repos." + (hadCache ? " Loaded cache." : " Loading blobs..."));
+        // Shuffle repos for variety.
+        for (var i = repos.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = repos[i]; repos[i] = repos[j]; repos[j] = tmp;
+        }
+        if (!hadCache) loadMoreImages();
+    }).catch(function(err) {
+        if (!hadCache) setStatus("Error: " + err.message);
+    });
+
+    // --- Animation loop (for smooth scrolling & initial draw) ---
+    var animId;
+    function loop() {
+        animId = requestAnimationFrame(loop);
+    }
+    animId = requestAnimationFrame(loop);
+    window.__homeCanvasAnimId = animId;
+
+    // --- Cleanup ---
+    window.__homeCanvasCleanup = function() {
+        cancelAnimationFrame(animId);
+        canvas.removeEventListener("wheel", handleWheel);
+        window.removeEventListener("resize", resize);
+    };
+})();
+</script>
