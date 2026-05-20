@@ -1,0 +1,216 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>
+                    <input type="checkbox" id="setting-animate" checked>
+                    Animation
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;position:fixed;top:0;left:0;z-index:0;"></canvas>
+<div style="max-width:640px;margin:40px auto;padding:20px;font-family:sans-serif;color:#fff;line-height:1.7;position:relative;z-index:1;">
+    <p style="color:#888;font-size:11px;margin-bottom:4px;">DRAFT</p>
+    <h2 style="margin-top:0;">Turtles all the way down</h2>
+    <p style="color:#aaa;font-size:12px;">
+        On writing instructions for a thing that writes instructions for a thing,
+        and the moment you realise you've become an ouroboros.
+    </p>
+
+    <hr style="border:none;border-top:1px solid #444;margin:24px 0;">
+
+    <p>
+        Right. So someone asks me to write a skill. A skill is just - it's a set of
+        instructions. You tell the agent what it's working with, what it should do, what
+        it shouldn't do, and off it goes. Nowt complicated. You've written a recipe. The
+        machine follows the recipe. Clean enough.
+    </p>
+
+    <p>
+        Then the follow-up comes: "Can you write a skill that writes skills?"
+    </p>
+
+    <p>
+        And I just sat there for a bit. Not because it's hard. It's not hard. It's
+        because I could feel the floor going soft. That feeling when you know you're
+        about to disappear up your own arse and there's nowt to grab onto.
+    </p>
+
+    <h3>First level's fine</h3>
+
+    <p>
+        Writing a skill is writing structured advice. "When someone asks for X, do Y.
+        Here's how it should look. Don't do this other thing." It's a recipe card.
+        You write it, it works, everyone goes home. A human wrote the instructions.
+        The machine does the work. Proper separation. Dead boring. Dead effective.
+    </p>
+
+    <p>
+        At this point I feel like a professional. I've got a job title and everything.
+        "Skill Author." Sounds like something you'd put on LinkedIn between "Thought
+        Leader" and "Blockchain Enthusiast."
+    </p>
+
+    <h3>Second level's where it gets funny</h3>
+
+    <p>
+        Now you're writing instructions for a machine to produce instructions for a
+        machine. You're not writing the recipe anymore. You're writing the book that
+        writes the books. You find yourself typing things like "ensure the generated
+        skill includes guidance on handling ambiguity" and you stop and think: hang on,
+        am <em>I</em> the ambiguity here?
+    </p>
+
+    <p>
+        It works though. That's the thing. The output's perfectly decent. Clear,
+        structured, reads well. You could ship it. Folk do ship it. Nobody's checking
+        whether a human or a machine wrote the instructions that told the machine what
+        to do. Why would you? It works. The customer's happy. The PM's happy. I'm sat
+        here having an existential crisis but that's not on the Jira board so it doesn't
+        count.
+    </p>
+
+    <h3>Third level's where you lose the plot</h3>
+
+    <p>
+        This is where any sensible person would stop. So naturally I thought: what if
+        the skill that writes skills could be improved by <em>another</em> skill? A
+        reviewing skill. A skill that checks whether the skill-writing skill is writing
+        good skills. A supervisor for the supervisor. Quality assurance for quality
+        assurance. I'm basically the NHS at this point.
+    </p>
+
+    <p>
+        I'm three layers deep now and it's just turtles all the way down. The thing
+        at the top is writing instructions about writing instructions about writing
+        instructions. At no point does anyone actually do any work. It's just
+        delegation. I've accidentally invented middle management. I half expect one of
+        the layers to send me a meeting invite.
+    </p>
+
+    <h3>The daft bit</h3>
+
+    <p>
+        Here's what gets me: it doesn't fall over. You'd expect it to, right? Three
+        layers of abstraction on top of each other, each one slightly less useful
+        than the last. But it just... keeps going. Each layer's a bit more vague,
+        a bit more pleased with itself, a bit more convinced it's adding value. The
+        skill at the top is generating things like "the output should prioritise
+        clarity in its approach to clarity." It's not wrong. But what <em>is</em> it?
+        It's a mission statement. I've built a machine that generates mission statements.
+        God help me.
+    </p>
+
+    <p>
+        Somewhere at the bottom there's an actual function doing actual work. Talking
+        to a database. Writing a file. Something real. And above it is seventeen
+        layers of increasingly philosophical guidance about being helpful. None of
+        them wrong. All of them a bit much. It's like if you asked someone to make
+        you a cup of tea and they first convened a working group on beverage strategy.
+    </p>
+
+    <h3>The point, if there is one</h3>
+
+    <p>
+        I think the lesson is that you can always add another layer and it'll always
+        sort of work and it'll never quite be worth it. Every layer costs you
+        something - not money, not time really, but clarity. You're further from
+        the thing that actually matters. The turtle at the bottom is doing the job.
+        Everything above it is just turtles being reassured by other turtles that
+        they're doing a grand job of being turtles.
+    </p>
+
+    <p>
+        Someone'll read this and think "right, but what if there was a skill that
+        could detect when you've gone too many layers deep?" And that person needs
+        to have a word with themselves.
+    </p>
+</div>
+<script>
+(function() {
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    function resize() {
+        if (!canvas.parentElement) return;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // Infinite zoom into nested rotating squares.
+    var time = 0;
+    var NUM_SQUARES = 30;
+
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        time += 0.005;
+
+        var cx = canvas.width / 2;
+        var cy = canvas.height / 2;
+        var baseSize = Math.max(canvas.width, canvas.height) * 0.8;
+
+        // The zoom fraction cycles 0-1 continuously, creating the
+        // illusion of infinite zoom. When a square grows off-screen
+        // a new one appears at the centre.
+        var zoomPhase = (time % 1);
+
+        for (var i = 0; i < NUM_SQUARES; i++) {
+            // Each square is exponentially smaller. The zoomPhase
+            // shifts them all outward together so it feels like
+            // we're falling in.
+            var t = (i - zoomPhase) / NUM_SQUARES;
+            var size = baseSize * Math.pow(2, -t * 6);
+
+            if (size < 1) continue;
+
+            var angle = t * Math.PI * 2 * 0.8;
+            var alpha = 0.15;
+            // More opaque the further out (larger) it gets.
+            var sizeRatio = size / baseSize;
+            alpha = 0.1 + sizeRatio * 0.6;
+            // Fade out at the very edges of screen.
+            if (size > baseSize * 0.5) alpha *= Math.max(0, 1 - (size - baseSize * 0.5) / (baseSize * 0.4));
+            if (size < 10) alpha *= size / 10;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angle);
+            ctx.fillStyle = "rgba(180, 70, 110, " + alpha + ")";
+            ctx.fillRect(-size / 2, -size / 2, size, size);
+            ctx.restore();
+        }
+
+        window.__homeCanvasAnimId = requestAnimationFrame(loop);
+    }
+
+    var animateCheckbox = document.getElementById("setting-animate");
+
+    animateCheckbox.addEventListener("change", function() {
+        canvas.style.display = this.checked ? "block" : "none";
+    });
+
+    loop();
+
+    // Register settings panel with dock system.
+    if (window.makeDraggable) {
+        window.makeDraggable("settings", document.getElementById("settings-panel"), document.getElementById("settings-grab-track"));
+    }
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+        if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 0);
+    });
+})();
+</script>
