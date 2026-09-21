@@ -13,20 +13,28 @@
     #resume-viewer h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.4rem); letter-spacing: -0.055em; line-height: 1; }
     #resume-viewer .resume-intro { max-width: 720px; margin: 18px 0 28px; color: #d8d8d8; font-size: 1.05rem; }
     #resume-viewer .resume-status { margin: 0; color: #bfc7d8; font-size: .875rem; }
-    #resume-viewer .resume-filter-panel { margin: 26px 0 34px; padding: 18px; background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.22); border-radius: 10px; }
-    #resume-viewer .resume-filter-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-    #resume-viewer .resume-filter-heading h2 { margin: 0; }
-    #resume-viewer .resume-filter-toggle { appearance: none; border: 0; background: none; color: #fff; cursor: pointer; font: inherit; font-size: 1rem; font-weight: 700; padding: 0; }
-    #resume-viewer .resume-filter-toggle::after { content: " −"; color: #c5c5c5; font-weight: 400; }
-    #resume-viewer .resume-filter-panel.is-collapsed .resume-filter-toggle::after { content: " +"; }
-    #resume-viewer .resume-filter-panel.is-collapsed #resume-filters,
-    #resume-viewer .resume-filter-panel.is-collapsed .resume-filter-modes,
-    #resume-viewer .resume-filter-panel.is-collapsed .resume-clear { display: none; }
-    #resume-viewer .resume-filter-modes { display: flex; gap: 6px; margin: 14px 0 0; }
-    #resume-viewer .resume-filter-mode { border: 1px solid rgba(255,255,255,.35); border-radius: 4px; background: transparent; color: #fff; cursor: pointer; font: inherit; font-size: .8rem; padding: 5px 8px; }
-    #resume-viewer .resume-filter-mode.is-active[data-mode="include"] { background: #d9f6e6; border-color: #d9f6e6; color: #103721; }
-    #resume-viewer .resume-filter-mode.is-active[data-mode="exclude"] { background: #ffdede; border-color: #ffdede; color: #571515; }
-    #resume-viewer .resume-clear { appearance: none; border: 0; background: none; color: #a9c7ff; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+    #resume-viewer #settings-panel { width: min(932px, calc(100vw - 40px)); max-width: none; }
+    #resume-viewer #settings-panel.is-minimap-hidden { width: min(260px, calc(100vw - 40px)); }
+    #resume-viewer #settings-body { max-height: calc(100vh - 100px); overflow-y: auto; }
+    #resume-viewer #settings-body .resume-clear { margin-top: 12px; }
+    #resume-viewer #settings-body .resume-filter-label { color: #222; }
+    #resume-viewer #settings-body .resume-tag { width: auto; margin: 0; color: #222; }
+    #resume-viewer #settings-body .resume-tag:hover, #resume-viewer #settings-body .resume-tag.is-include, #resume-viewer #settings-body .resume-tag.is-exclude { color: #fff; }
+    #resume-viewer .resume-filter-modes { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; border: 0; }
+    #resume-viewer .resume-filter-modes label { justify-content: flex-start; margin: 0; }
+    #resume-viewer .resume-filter-modes input { width: auto; margin: 0; }
+    #resume-viewer .resume-filter-launchers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+    #resume-viewer .resume-filter-launchers button { margin: 0; }
+    #resume-viewer .resume-tag-window { max-width: min(380px, calc(100vw - 40px)); }
+    #resume-viewer .resume-filter-window-body { max-height: min(70vh, 520px); overflow-y: auto; color: #222; }
+    #resume-viewer .resume-filter-window-body .resume-filter-label { color: #222; }
+    #resume-viewer .resume-filter-window-body .resume-tag { width: auto; margin: 0; color: #222; }
+    #resume-viewer .resume-filter-window-body .resume-tag:hover, #resume-viewer .resume-filter-window-body .resume-tag.is-include, #resume-viewer .resume-filter-window-body .resume-tag.is-exclude { color: #fff; }
+    #resume-viewer .resume-minimap { margin: 0 0 12px; padding: 18px; background: #fff; border-top: 2px solid #808080; border-left: 2px solid #808080; border-right: 2px solid #fff; border-bottom: 2px solid #fff; }
+    #resume-viewer .resume-minimap-axis { display: flex; justify-content: space-between; color: #222; font-size: .72rem; }
+    #resume-viewer .resume-minimap-track { height: 112px; margin: 6px 5px 0; position: relative; }
+    #resume-viewer .resume-minimap-track::before { content: ""; position: absolute; top: 55px; right: 0; left: 0; height: 1px; background: rgba(0,0,0,.35); }
+    #resume-viewer .resume-minimap-marker { position: absolute; top: 8px; bottom: 8px; left: var(--marker-position); width: 3px; transform: translateX(-50%); background: var(--marker-colours); border-radius: 999px; }
     #resume-viewer .resume-filter-group + .resume-filter-group { margin-top: 12px; }
     #resume-viewer .resume-filter-label { display: block; margin-bottom: 5px; color: #c5c5c5; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     #resume-viewer .resume-tags { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -38,7 +46,7 @@
     #resume-viewer .resume-entry::before { content: ""; position: absolute; left: 137px; top: 6px; bottom: -6px; width: 1px; background: rgba(255,255,255,.24); }
     #resume-viewer .resume-entry::after { content: ""; position: absolute; left: 133px; top: 3px; width: 9px; height: 9px; border-radius: 50%; background: #fff; }
     #resume-viewer .resume-entry:last-child::before { display: none; }
-    #resume-viewer .resume-date { color: #c5c5c5; font-size: .82rem; text-align: right; }
+    #resume-viewer .resume-date { padding-right: 12px; color: #c5c5c5; font-size: .82rem; text-align: right; }
     #resume-viewer .resume-card { min-width: 0; padding-left: 24px; }
     #resume-viewer .resume-card h3 { margin: 0 0 7px; font-size: 1.15rem; line-height: 1.25; }
     #resume-viewer .resume-summary { margin: 0 0 11px; color: #eeeeee; }
@@ -61,17 +69,31 @@
     <h1 id="resume-title">A record of making things.</h1>
     <p class="resume-intro">A filterable timeline of engineering work across Juju, Convoy, Fantasy Land, Coherence, Colossus, and Snowy.</p>
     <p class="resume-status" id="resume-status" aria-live="polite">Loading activity records…</p>
-    <section class="resume-filter-panel" aria-labelledby="resume-filter-title" hidden>
-        <div class="resume-filter-heading">
-            <h2><button class="resume-filter-toggle" id="resume-filter-title" type="button" aria-expanded="true">Filter</button></h2>
-            <button class="resume-clear" id="resume-clear" type="button">clear filters</button>
+    <div id="settings-panel" class="win-window is-minimap-hidden" tabindex="0" role="region" aria-label="Resume settings">
+        <div id="settings-grab" class="win-grab">
+            <button id="settings-minimize" title="Minimize">_</button>
+            <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+            <div id="settings-grab-track" class="win-grab-track"></div>
         </div>
-        <div id="resume-filters"></div>
-        <div class="resume-filter-modes" role="group" aria-label="Tag filter mode">
-            <button class="resume-filter-mode is-active" type="button" data-mode="include" aria-pressed="true">Include tags</button>
-            <button class="resume-filter-mode" type="button" data-mode="exclude" aria-pressed="false">Exclude tags</button>
+        <div id="settings-chrome" class="win-chrome">
+            <div id="settings-body" class="win-body">
+                <div class="settings-fieldset resume-filter-panel" aria-label="Filters">
+                    <div class="settings-legend">Filters</div>
+                    <button id="resume-minimap-toggle" type="button" disabled>Loading minimap…</button>
+                    <section class="resume-minimap" id="resume-minimap-panel" aria-label="Visible activities across time" hidden>
+                        <div class="resume-minimap-axis"><span id="resume-minimap-start"></span><span id="resume-minimap-end"></span></div>
+                        <div class="resume-minimap-track" id="resume-minimap-track"></div>
+                    </section>
+                    <div class="resume-filter-launchers" id="resume-filters"></div>
+                    <fieldset class="resume-filter-modes" aria-label="Tag filter mode">
+                        <label><input type="radio" name="resume-filter-mode" value="include" checked> Include tags</label>
+                        <label><input type="radio" name="resume-filter-mode" value="exclude"> Exclude tags</label>
+                    </fieldset>
+                    <button class="resume-clear" id="resume-clear" type="button">clear filters</button>
+                </div>
+            </div>
         </div>
-    </section>
+    </div>
     <p class="resume-results-meta" id="resume-results-meta"></p>
     <ol class="resume-timeline" id="resume-timeline"></ol>
     <p class="resume-evidence">Source data: <a href="https://gist.githubusercontent.com/SimonRichardson/1e8fc2ee19ea5c72134d222760efae35/raw/5211f8313a5e434957a15049311bb9b099fb02d5/juju.csv">Juju</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/47ec0f2aab2d74a53a389c4fcedffe99/raw/bb9bfb11f6631a03a8873d75a466788a7f972031/convoy.csv">Convoy</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/09843adb65f43b28f56ea18cc2915e2c/raw/f3fd3cee16326e81395ec86fd70341f762361fed/fantasy.csv">Fantasy Land</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/44cd3b040ed25ce0e9117b80a0a8b764/raw/1c87feec52670d23172ae2f76771e56dac5db836/coherence.csv">Coherence</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/fb42ae1c957bab03df464db8db12b784/raw/940016fe9790936baff826d32557c4223f51795d/colossus.csv">Colossus</a>, and <a href="https://gist.githubusercontent.com/SimonRichardson/8a1b12d795e4acf7b51990b02c7f762e/raw/b12b6c8913fe13343b396c5e4c74b8cc8f035821/snowy.csv">Snowy</a>.</p>
@@ -92,6 +114,7 @@
     var selected = { include: {}, exclude: {} };
     var filterMode = "include";
     var entries = [];
+    var filterWindows = {};
     var groups = [
         { key: "company_tag", label: "Organisation" },
         { key: "role_tag", label: "Role" },
@@ -202,6 +225,25 @@
         if (!years.length) return "";
         return years[0] === years[years.length - 1] ? " in " + years[0] : " across " + years[0] + "–" + years[years.length - 1];
     }
+    function markerColours(item) {
+        var active = Object.keys(selected.include).concat(Object.keys(selected.exclude));
+        var itemTags = groups.reduce(function (all, group) { return all.concat(tagsFor(item, group.key).map(function (tag) { return makeFilterKey(group.key, tag); })); }, []);
+        var keys = active.length ? itemTags.filter(function (key) { return active.indexOf(key) !== -1; }) : itemTags;
+        var colours = keys.slice(0, 4).map(function (key) { return "hsl(" + tagHue(key) + " 58% 52%)"; });
+        if (!colours.length) colours.push("hsl(0 0% 65%)");
+        var step = 100 / colours.length;
+        return "linear-gradient(to bottom, " + colours.map(function (colour, index) { return colour + " " + (index * step) + "% " + ((index + 1) * step) + "%"; }).join(", ") + ")";
+    }
+    function renderMinimap(filtered) {
+        var dates = entries.map(function (item) { return Date.parse(item.date + "T12:00:00Z"); });
+        var start = Math.min.apply(Math, dates), end = Math.max.apply(Math, dates), range = end - start || 1;
+        document.getElementById("resume-minimap-start").textContent = new Date(start).getUTCFullYear();
+        document.getElementById("resume-minimap-end").textContent = new Date(end).getUTCFullYear();
+        document.getElementById("resume-minimap-track").innerHTML = filtered.map(function (item) {
+            var position = ((Date.parse(item.date + "T12:00:00Z") - start) / range) * 100;
+            return '<span class="resume-minimap-marker" style="--marker-position: ' + position + '%; --marker-colours: ' + markerColours(item) + '" title="' + escapeHtml(formatDate(item.date) + ": " + item.unit_of_work) + '"></span>';
+        }).join("");
+    }
     function matches(item) {
         var included = Object.keys(selected.include);
         var excluded = Object.keys(selected.exclude);
@@ -216,6 +258,7 @@
         var filterText = includeCount || excludeCount ? " · " + includeCount + " included, " + excludeCount + " excluded" : activityDateRange();
         document.getElementById("resume-results-meta").textContent = filtered.length + " " + (filtered.length === 1 ? "activity" : "activities") + filterText;
         var timeline = document.getElementById("resume-timeline");
+        renderMinimap(filtered);
         if (!filtered.length) { timeline.innerHTML = '<li class="resume-empty">No activities match those filters. Try clearing one or more tags.</li>'; return; }
         timeline.innerHTML = filtered.map(function (item) {
             var itemTags = groups.reduce(function (all, group) { return all.concat(tagsFor(item, group.key).map(function (tag) { return { key: group.key, tag: tag }; })); }, []);
@@ -232,35 +275,95 @@
         renderFilters(); render();
     }
     function renderFilterModes() {
-        document.querySelectorAll(".resume-filter-mode").forEach(function (button) {
-            var active = button.dataset.mode === filterMode;
-            button.classList.toggle("is-active", active);
-            button.setAttribute("aria-pressed", active);
+        document.querySelectorAll("input[name='resume-filter-mode']").forEach(function (input) {
+            input.checked = input.value === filterMode;
         });
     }
-    function renderFilters() {
-        var target = document.getElementById("resume-filters");
-        target.innerHTML = groups.map(function (group) {
-            var tags = {};
-            entries.forEach(function (item) { tagsFor(item, group.key).forEach(function (tag) { tags[tag] = true; }); });
-            var values = Object.keys(tags).sort(function (a, b) { return a.localeCompare(b); });
-            if (!values.length) return "";
-            return '<div class="resume-filter-group"><span class="resume-filter-label">' + group.label + '</span><div class="resume-tags">' + values.map(function (tag) { var key = makeFilterKey(group.key, tag); var state = selected.include[key] ? "is-include" : (selected.exclude[key] ? "is-exclude" : ""); return '<button class="resume-tag ' + state + '" type="button" aria-pressed="' + Boolean(state) + '" data-filter="' + escapeHtml(key) + '" style="--tag-hue: ' + tagHue(key) + '">' + escapeHtml(tag) + '</button>'; }).join("") + '</div></div>';
+    function groupByKey(key) { return groups.filter(function (group) { return group.key === key; })[0]; }
+    function tagsForGroup(group) {
+        var tags = {};
+        entries.forEach(function (item) { tagsFor(item, group.key).forEach(function (tag) { tags[tag] = true; }); });
+        return Object.keys(tags).sort(function (a, b) { return a.localeCompare(b); });
+    }
+    function closeFilterWindow(groupKey) {
+        var state = filterWindows[groupKey];
+        if (!state) return;
+        if (window.__dockSystem) window.__dockSystem.unregister(state.dockId);
+        state.element.remove();
+        delete filterWindows[groupKey];
+    }
+    function renderFilterWindow(groupKey) {
+        var state = filterWindows[groupKey], group = groupByKey(groupKey);
+        if (!state || !group) return;
+        var target = state.element.querySelector(".resume-filter-window-tags");
+        target.innerHTML = tagsForGroup(group).map(function (tag) {
+            var key = makeFilterKey(group.key, tag);
+            var stateClass = selected.include[key] ? "is-include" : (selected.exclude[key] ? "is-exclude" : "");
+            return '<button class="resume-tag ' + stateClass + '" type="button" aria-pressed="' + Boolean(stateClass) + '" data-filter="' + escapeHtml(key) + '" style="--tag-hue: ' + tagHue(key) + '">' + escapeHtml(tag) + '</button>';
         }).join("");
         target.querySelectorAll("[data-filter]").forEach(function (button) { button.addEventListener("click", function () { toggleFilter(button.dataset.filter); }); });
     }
-    document.querySelectorAll(".resume-filter-mode").forEach(function (button) { button.addEventListener("click", function () { filterMode = button.dataset.mode; renderFilterModes(); }); });
-    document.getElementById("resume-filter-title").addEventListener("click", function () {
-        var panel = document.querySelector(".resume-filter-panel");
-        var collapsed = panel.classList.toggle("is-collapsed");
-        this.setAttribute("aria-expanded", !collapsed);
+    function openFilterWindow(groupKey) {
+        if (filterWindows[groupKey]) { filterWindows[groupKey].element.focus(); return; }
+        var group = groupByKey(groupKey);
+        if (!group) return;
+        var dockId = "resume-filter-" + group.key;
+        var pane = document.createElement("div");
+        pane.id = dockId + "-window";
+        pane.className = "win-window resume-tag-window";
+        pane.tabIndex = 0;
+        pane.setAttribute("role", "region");
+        pane.setAttribute("aria-label", group.label + " filters");
+        pane.innerHTML = '<div class="win-grab"><button class="win-close-btn" type="button" title="Close">&#10005;</button><button class="resume-window-minimize" type="button" title="Minimize">_</button><button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button><div class="win-grab-track"></div></div><div class="win-chrome"><div class="win-body resume-filter-window-body"><span class="resume-filter-label">' + escapeHtml(group.label) + '</span><div class="resume-tags resume-filter-window-tags"></div></div></div>';
+        var rect = settingsPanel.getBoundingClientRect();
+        var offset = Object.keys(filterWindows).length * 24;
+        pane.style.left = Math.max(20, rect.left - 390 - offset) + "px";
+        pane.style.top = Math.max(20, rect.top + offset) + "px";
+        document.getElementById("resume-viewer").appendChild(pane);
+        filterWindows[groupKey] = { element: pane, dockId: dockId };
+        pane.querySelector(".win-close-btn").addEventListener("click", function () { closeFilterWindow(groupKey); });
+        pane.querySelector(".resume-window-minimize").addEventListener("click", function () {
+            var chrome = pane.querySelector(".win-chrome");
+            chrome.style.display = chrome.style.display === "none" ? "flex" : "none";
+            if (window.__dockSystem) setTimeout(function () { window.__dockSystem.dock(); }, 0);
+        });
+        if (window.makeDraggable) window.makeDraggable(dockId, pane, pane.querySelector(".win-grab-track"));
+        renderFilterWindow(groupKey);
+    }
+    function renderFilters() {
+        var target = document.getElementById("resume-filters");
+        target.innerHTML = groups.map(function (group) { return '<button type="button" data-group="' + group.key + '">' + group.label + '</button>'; }).join("");
+        target.querySelectorAll("[data-group]").forEach(function (button) { button.addEventListener("click", function () { openFilterWindow(button.dataset.group); }); });
+        Object.keys(filterWindows).forEach(renderFilterWindow);
+    }
+    document.querySelectorAll("input[name='resume-filter-mode']").forEach(function (input) { input.addEventListener("change", function () { if (input.checked) { filterMode = input.value; renderFilterModes(); } }); });
+    var settingsPanel = document.getElementById("settings-panel");
+    var minimapPanel = document.getElementById("resume-minimap-panel");
+    var minimapToggle = document.getElementById("resume-minimap-toggle");
+    function setMinimapVisibility(hidden) {
+        minimapPanel.hidden = hidden;
+        settingsPanel.classList.toggle("is-minimap-hidden", hidden);
+        minimapToggle.textContent = hidden ? "Show minimap" : "Hide minimap";
+        if (window.__dockSystem) setTimeout(function () { window.__dockSystem.dock(); }, 0);
+    }
+    minimapToggle.addEventListener("click", function () { setMinimapVisibility(!minimapPanel.hidden); });
+    document.getElementById("settings-minimize").addEventListener("click", function () {
+        var chrome = document.getElementById("settings-chrome");
+        chrome.style.display = chrome.style.display === "none" ? "flex" : "none";
+        if (window.__dockSystem) setTimeout(function () { window.__dockSystem.dock(); }, 0);
     });
+    if (window.makeDraggable) window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+    window.__homeCanvasCleanup = function () {
+        Object.keys(filterWindows).forEach(closeFilterWindow);
+    };
     document.getElementById("resume-clear").addEventListener("click", function () { selected = { include: {}, exclude: {} }; renderFilters(); render(); });
     Promise.all(sources.map(loadSource))
         .then(function (files) {
             entries = files.reduce(function (all, text) { return all.concat(csvRows(text)); }, []).sort(function (a, b) { return b.date.localeCompare(a.date); });
             document.getElementById("resume-status").textContent = "";
-            document.querySelector(".resume-filter-panel").hidden = false;
+            settingsPanel.style.display = "";
+            minimapToggle.disabled = false;
+            setMinimapVisibility(true);
             renderFilters(); render();
         })
         .catch(function () { document.getElementById("resume-status").textContent = "Activity data could not be loaded. Please try again later."; });
