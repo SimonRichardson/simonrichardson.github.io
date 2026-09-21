@@ -61,7 +61,7 @@
 
 <main id="resume-viewer" aria-labelledby="resume-title">
     <h1 id="resume-title">A record of making things.</h1>
-    <p class="resume-intro">A filterable timeline of engineering work across Juju, Convoy, and the Fantasy Land open-source ecosystem.</p>
+    <p class="resume-intro">A filterable timeline of engineering work across Juju, Convoy, Fantasy Land, Coherence, Colossus, and Snowy.</p>
     <p class="resume-status" id="resume-status" aria-live="polite">Loading activity records…</p>
     <section class="resume-filter-panel" aria-labelledby="resume-filter-title" hidden>
         <div class="resume-filter-heading">
@@ -76,7 +76,7 @@
     </section>
     <p class="resume-results-meta" id="resume-results-meta"></p>
     <ol class="resume-timeline" id="resume-timeline"></ol>
-    <p class="resume-evidence">Source data: <a href="https://gist.githubusercontent.com/SimonRichardson/1e8fc2ee19ea5c72134d222760efae35/raw/5211f8313a5e434957a15049311bb9b099fb02d5/juju.csv">Juju</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/47ec0f2aab2d74a53a389c4fcedffe99/raw/bb9bfb11f6631a03a8873d75a466788a7f972031/convoy.csv">Convoy</a>, and <a href="https://gist.githubusercontent.com/SimonRichardson/09843adb65f43b28f56ea18cc2915e2c/raw/f3fd3cee16326e81395ec86fd70341f762361fed/fantasy.csv">Fantasy Land</a>.</p>
+    <p class="resume-evidence">Source data: <a href="https://gist.githubusercontent.com/SimonRichardson/1e8fc2ee19ea5c72134d222760efae35/raw/5211f8313a5e434957a15049311bb9b099fb02d5/juju.csv">Juju</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/47ec0f2aab2d74a53a389c4fcedffe99/raw/bb9bfb11f6631a03a8873d75a466788a7f972031/convoy.csv">Convoy</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/09843adb65f43b28f56ea18cc2915e2c/raw/f3fd3cee16326e81395ec86fd70341f762361fed/fantasy.csv">Fantasy Land</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/44cd3b040ed25ce0e9117b80a0a8b764/raw/1c87feec52670d23172ae2f76771e56dac5db836/coherence.csv">Coherence</a>, <a href="https://gist.githubusercontent.com/SimonRichardson/fb42ae1c957bab03df464db8db12b784/raw/940016fe9790936baff826d32557c4223f51795d/colossus.csv">Colossus</a>, and <a href="https://gist.githubusercontent.com/SimonRichardson/8a1b12d795e4acf7b51990b02c7f762e/raw/b12b6c8913fe13343b396c5e4c74b8cc8f035821/snowy.csv">Snowy</a>.</p>
 </main>
 
 <script>
@@ -84,8 +84,13 @@
     var sources = [
         "https://gist.githubusercontent.com/SimonRichardson/1e8fc2ee19ea5c72134d222760efae35/raw/5211f8313a5e434957a15049311bb9b099fb02d5/juju.csv",
         "https://gist.githubusercontent.com/SimonRichardson/47ec0f2aab2d74a53a389c4fcedffe99/raw/bb9bfb11f6631a03a8873d75a466788a7f972031/convoy.csv",
-        "https://gist.githubusercontent.com/SimonRichardson/09843adb65f43b28f56ea18cc2915e2c/raw/f3fd3cee16326e81395ec86fd70341f762361fed/fantasy.csv"
+        "https://gist.githubusercontent.com/SimonRichardson/09843adb65f43b28f56ea18cc2915e2c/raw/f3fd3cee16326e81395ec86fd70341f762361fed/fantasy.csv",
+        "https://gist.githubusercontent.com/SimonRichardson/44cd3b040ed25ce0e9117b80a0a8b764/raw/1c87feec52670d23172ae2f76771e56dac5db836/coherence.csv",
+        "https://gist.githubusercontent.com/SimonRichardson/fb42ae1c957bab03df464db8db12b784/raw/940016fe9790936baff826d32557c4223f51795d/colossus.csv",
+        "https://gist.githubusercontent.com/SimonRichardson/8a1b12d795e4acf7b51990b02c7f762e/raw/b12b6c8913fe13343b396c5e4c74b8cc8f035821/snowy.csv"
     ];
+    var cachePrefix = "resume-csv-v1::";
+    var cacheDuration = 7 * 24 * 60 * 60 * 1000;
     var selected = { include: {}, exclude: {} };
     var filterMode = "include";
     var entries = [];
@@ -98,35 +103,38 @@
     // Keep the source records untouched, but use deliberately broad resume facets.
     // The activity title, summary, and evidence retain the implementation detail.
     var expertiseAliases = (function () {
-        var aliases = {};
+        var aliases = {}, exactAliases = {};
         function group(name, tags) {
-            tags.split(";").forEach(function (tag) { aliases[tag.toLowerCase()] = name; });
+            tags.split(";").forEach(function (tag) {
+                exactAliases[tag] = name;
+                aliases[tag.toLowerCase()] = name;
+            });
         }
-        group("Dqlite", "dqlite");
+        group("Databases", "database;databases;dqlite;SQLite;Mongo;MongoDB;SQL;SQLair;InfluxDB");
         group("Kubernetes", "caas;k8s;kubernetes");
         group("Go", "go");
         group("JavaScript", "javascript;es6");
-        group("Functional programming", "abstractions;algebraic data types;algebraic laws;Coproducts;Coyoneda;effect systems;Either;Endo;Fantasy Land specification;foldMap;Free applicatives;Free monads;functional correctness;Identity;identity;interpreters;IO;lenses;manifolds;Maybe;monad transformers;Monoids;object safety;optics;Profunctors;Promises;Reader monad;Sequence;State monad;Traversable;Tuples;type systems;Writer monad;Yoneda");
-        group("Architecture", "architecture;backend architecture;controller architecture;project architecture;provider architecture;worker architecture;domain services;domain-driven design;package boundaries;module systems;dependency injection;dependencies;dependency management;library design;maintainability");
-        group("APIs", "APIs;API design;API gateway;API health;API migration;API schema;HTTP APIs;HTTP clients;remote APIs;client libraries;middleware");
-        group("Data modelling", "data modelling;data export;data lifecycle;data portability;schema generation;query languages");
-        group("Lifecycle management", "bootstrap;daemon lifecycle;library lifecycle;lifecycle management;model lifecycle;provider lifecycle;upgrades;upgrade workflow;runtime;runtime isolation");
+        group("Functional programming", "abstractions;algebraic data types;algebraic laws;Coproducts;Coyoneda;effect systems;Either;Endo;Fantasy Land specification;foldMap;Free applicatives;Free monads;functional correctness;Identity;interpreters;IO;lenses;manifolds;Maybe;monad transformers;Monoids;object safety;optics;Profunctors;Promises;Reader monad;Sequence;State monad;Traversable;Tuples;type systems;Writer monad;Yoneda;functional programming");
+        group("Architecture", "architecture;backend architecture;controller architecture;project architecture;provider architecture;worker architecture;domain services;domain-driven design;package boundaries;module systems;dependency injection;dependencies;dependency management;library design;maintainability;distributed systems;data structures;consistent hashing;red-black trees;ticketing systems;service architecture;filesystems;remote storage;frontend architecture;maintenance;Raft;leader election;membership;cluster management;cluster balancing;cluster bootstrap;service discovery;replication;backends");
+        group("APIs", "APIs;API design;API gateway;API health;API migration;API schema;HTTP APIs;HTTP clients;remote APIs;client libraries;middleware;REST APIs;multipart uploads;HTTP routing");
+        group("Data modelling", "data modelling;data export;data lifecycle;data portability;schema generation;query languages;append-only ledgers;append-only storage;ledgers;document storage;document versioning;querying;content storage;content-addressable storage;document management;metadata;document revisioning;audit trails;storage;object storage;ZIP;document modelling;data encoding;UUIDs");
+        group("Lifecycle management", "bootstrap;daemon lifecycle;library lifecycle;lifecycle management;model lifecycle;provider lifecycle;upgrades;upgrade workflow;runtime;runtime isolation;workload management;worker;workers;asynchronous workers;worker engine;Docker;deployment;configuration;operations;cluster health;probes");
         group("Migration", "migration;CLI migration;ecosystem migration;library migration;model migration;compatibility;interoperability;cross-model relations");
-        group("Developer tooling", "developer tooling;build systems;CI;code generation;project automation;toolchains;static analysis;refactoring;diagnostics;terminal UI");
-        group("Quality engineering", "testing;integration testing;property-based testing;testability;validation;code quality;performance");
-        group("Observability", "observability;logging;metrics;tracing;OpenTelemetry;Prometheus;Loki;Tempo;InfluxDB;syslog;introspection");
-        group("Security", "authentication;authorisation;RBAC;secrets;cryptography;macaroons;Bakery;TLS;SHA-256");
+        group("Developer tooling", "developer tooling;build systems;CI;code generation;project automation;toolchains;static analysis;refactoring;diagnostics;terminal UI;CLI;developer experience;documentation;open source;open-source maintenance");
+        group("Quality engineering", "testing;integration testing;property-based testing;testability;validation;code quality;performance;quorum;coordination;reliability;resilience;HA;Bloom filters;probabilistic data structures;content validation;error handling;data integrity;collision detection");
+        group("Observability", "observability;logging;metrics;tracing;OpenTelemetry;Prometheus;Loki;Tempo;syslog;introspection;statistics;signals");
+        group("Security", "authentication;authorisation;identity;RBAC;secrets;cryptography;macaroons;Bakery;TLS;SHA-256;encryption;security");
         group("Release engineering", "release engineering;release lifecycle;release management;release policy");
-        group("Event-driven systems", "events;event streams;event systems;change streams;event-driven systems");
-        group("User experience", "user experience;UX;user interfaces;Bubble Tea");
-        return aliases;
+        group("Event-driven systems", "events;event streams;event systems;change streams;event-driven systems;watchers");
+        group("User experience", "user experience;UX;user interfaces;Bubble Tea;Elm");
+        return { exact: exactAliases, insensitive: aliases };
     }());
 
     function normaliseExpertiseTags(value) {
         var seen = {};
         return value.split(";").map(function (tag) {
             tag = tag.trim();
-            return expertiseAliases[tag.toLowerCase()] || tag;
+            return expertiseAliases.exact[tag] || expertiseAliases.insensitive[tag.toLowerCase()] || tag;
         }).filter(function (tag) {
             if (!tag || seen[tag]) return false;
             seen[tag] = true;
@@ -154,13 +162,43 @@
             var item = {};
             headers.forEach(function (header, index) { item[header] = values[index] || ""; });
             item.expertise_tags = item.expertise_tags ? normaliseExpertiseTags(item.expertise_tags) : [];
-            item.repositories = item.repositories ? item.repositories.split(";").map(function (tag) { return tag.trim(); }).filter(Boolean) : [];
+            item.repositories = (item.repositories || item.repository || "").split(";").map(function (tag) { return tag.trim(); }).filter(Boolean);
             return item;
+        });
+    }
+    function cacheKey(source) { return cachePrefix + source; }
+    function readCachedSource(source) {
+        try {
+            var cached = JSON.parse(localStorage.getItem(cacheKey(source)) || "null");
+            return cached && typeof cached.text === "string" ? cached : null;
+        } catch (error) { return null; }
+    }
+    function writeCachedSource(source, text) {
+        try { localStorage.setItem(cacheKey(source), JSON.stringify({ text: text, cachedAt: Date.now() })); }
+        catch (error) { /* Browsing must still work if storage is unavailable or full. */ }
+    }
+    function loadSource(source) {
+        var cached = readCachedSource(source);
+        if (cached && Date.now() - cached.cachedAt < cacheDuration) return Promise.resolve(cached.text);
+        return fetch(source).then(function (response) {
+            if (!response.ok) throw new Error("Could not load data");
+            return response.text();
+        }).then(function (text) {
+            writeCachedSource(source, text);
+            return text;
+        }).catch(function (error) {
+            if (cached) return cached.text;
+            throw error;
         });
     }
     function escapeHtml(value) { var node = document.createElement("span"); node.textContent = value; return node.innerHTML; }
     function tagsFor(item, key) { return Array.isArray(item[key]) ? item[key] : (item[key] ? [item[key]] : []); }
     function activeCount() { return Object.keys(selected.include).length + Object.keys(selected.exclude).length; }
+    function activityDateRange() {
+        var years = entries.map(function (item) { return item.date.slice(0, 4); }).sort();
+        if (!years.length) return "";
+        return years[0] === years[years.length - 1] ? " in " + years[0] : " across " + years[0] + "–" + years[years.length - 1];
+    }
     function matches(item) {
         var included = Object.keys(selected.include);
         var excluded = Object.keys(selected.exclude);
@@ -172,7 +210,7 @@
         var filtered = entries.filter(matches);
         var includeCount = Object.keys(selected.include).length;
         var excludeCount = Object.keys(selected.exclude).length;
-        var filterText = includeCount || excludeCount ? " · " + includeCount + " included, " + excludeCount + " excluded" : " across 2013–2023";
+        var filterText = includeCount || excludeCount ? " · " + includeCount + " included, " + excludeCount + " excluded" : activityDateRange();
         document.getElementById("resume-results-meta").textContent = filtered.length + " " + (filtered.length === 1 ? "activity" : "activities") + filterText;
         var timeline = document.getElementById("resume-timeline");
         if (!filtered.length) { timeline.innerHTML = '<li class="resume-empty">No activities match those filters. Try clearing one or more tags.</li>'; return; }
@@ -215,7 +253,7 @@
         this.setAttribute("aria-expanded", !collapsed);
     });
     document.getElementById("resume-clear").addEventListener("click", function () { selected = { include: {}, exclude: {} }; renderFilters(); render(); });
-    Promise.all(sources.map(function (source) { return fetch(source).then(function (response) { if (!response.ok) throw new Error("Could not load data"); return response.text(); }); }))
+    Promise.all(sources.map(loadSource))
         .then(function (files) {
             entries = files.reduce(function (all, text) { return all.concat(csvRows(text)); }, []).sort(function (a, b) { return b.date.localeCompare(a.date); });
             document.getElementById("resume-status").textContent = "";
