@@ -81,8 +81,13 @@
 
     function resize() {
         if (!canvas.parentElement) return;
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
+        var width = canvas.parentElement.clientWidth;
+        var height = canvas.parentElement.clientHeight;
+        // The fragment host may briefly have no layout during navigation.  Do
+        // not erase a valid drawing buffer in that transient state.
+        if (!width || !height) return;
+        canvas.width = width;
+        canvas.height = height;
     }
     resize();
     window.addEventListener("resize", resize);
@@ -343,6 +348,13 @@
 
     // --- Main loop ---
     function loop() {
+        // Thumbnail generation can remove this canvas during a page transition.
+        // Do not create or composite zero-sized canvases after that teardown.
+        if (!canvas.isConnected || !canvas.width || !canvas.height) {
+            window.__homeCanvasAnimId = null;
+            return;
+        }
+
         // Keep center ball centered and sized on resize.
         centerBall.x = canvas.width / 2;
         centerBall.y = canvas.height / 2;
