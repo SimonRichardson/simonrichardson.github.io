@@ -1,0 +1,232 @@
+<div id="settings-panel" class="win-window" tabindex="0" role="region" aria-label="Settings">
+    <div id="settings-grab" class="win-grab">
+        <button id="settings-minimize" title="Minimize">_</button>
+        <button class="dock-undock-btn" title="Undock" style="display:none;">&#9776;</button>
+        <div id="settings-grab-track" class="win-grab-track"></div>
+    </div>
+    <div id="settings-chrome" class="win-chrome">
+        <div id="settings-body" class="win-body">
+            <div class="settings-fieldset collapsed">
+                <div class="settings-legend">About</div>
+                <p>Several small flocks and a few independent birds move above a square base.</p>
+            </div>
+            <div class="settings-fieldset">
+                <div class="settings-legend">Controls</div>
+                <label>Birds <input type="number" id="setting-birds" min="10" max="150" value="60"></label>
+                <label>Speed <input type="range" id="setting-speed" min="1" max="20" value="8"></label>
+                <label><input type="checkbox" id="setting-autorotate" checked> Auto-rotate</label>
+                <button id="setting-apply">Apply</button>
+                <button id="setting-save">Save Image</button>
+            </div>
+        </div>
+    </div>
+</div>
+<canvas id="home-canvas" style="display:block;width:100%;height:100%;"></canvas>
+<script>
+(function() {
+    var canvas = document.getElementById("home-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+    var settingsPanel = document.getElementById("settings-panel");
+    var settings = { birds: 60, speed: 8, autoRotate: true };
+    var BASE_SIZE = 250, HEIGHT = 220, PERSPECTIVE = 800;
+    var rotY = 0.45, rotX = -0.7, camDragging = false, lastMX = 0;
+    var birds = [], animationId = null;
+
+    function resize() {
+        if (!canvas.parentElement) return;
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    document.getElementById("settings-minimize").addEventListener("click", function() {
+        var body = document.getElementById("settings-body");
+        body.style.display = body.style.display === "none" ? "block" : "none";
+    });
+    var legends = document.querySelectorAll("#settings-body .settings-legend");
+    for (var i = 0; i < legends.length; i++) {
+        legends[i].addEventListener("click", function() {
+            this.parentElement.classList.toggle("collapsed");
+            if (window.__dockSystem) setTimeout(function() { window.__dockSystem.dock(); }, 50);
+        });
+    }
+    document.getElementById("setting-speed").addEventListener("input", function() {
+        settings.speed = parseInt(this.value, 10) || 8;
+    });
+    document.getElementById("setting-autorotate").addEventListener("change", function() {
+        settings.autoRotate = this.checked;
+    });
+    document.getElementById("setting-apply").addEventListener("click", function() {
+        settings.birds = parseInt(document.getElementById("setting-birds").value, 10) || 60;
+        settings.birds = Math.max(10, Math.min(150, settings.birds));
+        document.getElementById("setting-birds").value = settings.birds;
+        initBirds();
+    });
+    document.getElementById("setting-save").addEventListener("click", function() {
+        var link = document.createElement("a");
+        link.download = "flocking.png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    });
+    window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
+
+    function onMouseDown(e) { camDragging = true; lastMX = e.clientX; }
+    function onMouseMove(e) {
+        if (!camDragging) return;
+        rotY += (e.clientX - lastMX) * 0.005;
+        lastMX = e.clientX;
+    }
+    function onMouseUp() { camDragging = false; }
+    function onTouchStart(e) { camDragging = true; lastMX = e.touches[0].clientX; }
+    function onTouchMove(e) {
+        if (!camDragging) return;
+        rotY += (e.touches[0].clientX - lastMX) * 0.005;
+        lastMX = e.touches[0].clientX;
+    }
+    canvas.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    canvas.addEventListener("touchstart", onTouchStart);
+    document.addEventListener("touchmove", onTouchMove);
+    document.addEventListener("touchend", onMouseUp);
+
+    function rotate(x, y, z) {
+        var cy = Math.cos(rotY), sy = Math.sin(rotY);
+        var rx = x * cy + z * sy, rz = -x * sy + z * cy;
+        var cx = Math.cos(rotX), sx = Math.sin(rotX);
+        return { x: rx, y: y * cx - rz * sx, z: y * sx + rz * cx };
+    }
+    function project(p) {
+        var scale = PERSPECTIVE / (PERSPECTIVE + p.z);
+        return { x: canvas.width / 2 + p.x * scale, y: canvas.height / 2 - p.y * scale, scale: scale, z: p.z };
+    }
+    function limit(b, max) {
+        var length = Math.sqrt(b.vx * b.vx + b.vy * b.vy + b.vz * b.vz);
+        if (length > max) { b.vx *= max / length; b.vy *= max / length; b.vz *= max / length; }
+    }
+    function Bird() {
+        this.x = (Math.random() - 0.5) * BASE_SIZE * 1.6;
+        this.y = 20 + Math.random() * (HEIGHT - 20);
+        this.z = (Math.random() - 0.5) * BASE_SIZE * 1.6;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.vz = (Math.random() - 0.5) * 2;
+        // Five flock identities; roughly one in five birds is deliberately untethered.
+        this.group = Math.random() < 0.2 ? -1 : Math.floor(Math.random() * 5);
+        this.phase = Math.random() * Math.PI * 2;
+    }
+    function initBirds() {
+        birds = [];
+        for (var i = 0; i < settings.birds; i++) birds.push(new Bird());
+    }
+    initBirds();
+
+    var flockTime = 0;
+    function updateBirds() {
+        flockTime += 1;
+        var perception = 90, separation = 30;
+        // The flock centres periodically converge, then pull apart again.
+        var split = (Math.sin(flockTime * 0.006) + 1) * 0.5;
+        for (var i = 0; i < birds.length; i++) {
+            var b = birds[i], count = 0, ax = 0, ay = 0, az = 0, cx = 0, cy = 0, cz = 0, sx = 0, sy = 0, sz = 0;
+            for (var j = 0; j < birds.length; j++) {
+                if (i === j) continue;
+                var o = birds[j], dx = o.x - b.x, dy = o.y - b.y, dz = o.z - b.z;
+                var d2 = dx * dx + dy * dy + dz * dz;
+                if (d2 < perception * perception) {
+                    if (b.group >= 0 && o.group === b.group) {
+                        count++; ax += o.vx; ay += o.vy; az += o.vz; cx += o.x; cy += o.y; cz += o.z;
+                    }
+                    if (d2 < separation * separation && d2 > 0.01) { sx -= dx / d2; sy -= dy / d2; sz -= dz / d2; }
+                }
+            }
+            if (count) {
+                b.vx += ((ax / count) - b.vx) * 0.07 + ((cx / count) - b.x) * 0.0012 + sx * 1.4;
+                b.vy += ((ay / count) - b.vy) * 0.07 + ((cy / count) - b.y) * 0.0012 + sy * 1.4;
+                b.vz += ((az / count) - b.vz) * 0.07 + ((cz / count) - b.z) * 0.0012 + sz * 1.4;
+            }
+            var groupAngle = b.group * Math.PI * 2 / 5 + flockTime * 0.004;
+            var targetX, targetY, targetZ;
+            if (b.group < 0) {
+                // Lone birds follow their own broad paths and never align or cohere.
+                targetX = Math.sin(flockTime * 0.012 + b.phase) * 185;
+                targetY = HEIGHT * 0.5 + Math.sin(flockTime * 0.02 + b.phase * 1.7) * 80;
+                targetZ = Math.cos(flockTime * 0.01 + b.phase * 1.3) * 185;
+            } else {
+                targetX = Math.cos(groupAngle) * split * 150 + Math.sin(flockTime * 0.012 + b.phase) * 28;
+                targetY = HEIGHT * 0.52 + Math.sin(flockTime * 0.018 + b.phase * 1.7 + b.group) * 48;
+                targetZ = Math.sin(groupAngle) * split * 150 + Math.cos(flockTime * 0.01 + b.phase) * 45;
+            }
+            b.vx += (targetX - b.x) * 0.0025 + Math.sin(flockTime * 0.08 + b.phase) * 0.025;
+            b.vy += (targetY - b.y) * 0.0025 + Math.cos(flockTime * 0.07 + b.phase) * 0.025;
+            b.vz += (targetZ - b.z) * 0.0025 + Math.sin(flockTime * 0.06 + b.phase * 2) * 0.025;
+            // Turn them back gently before they leave the square airspace.
+            var bound = BASE_SIZE * 0.92;
+            if (b.x < -bound || b.x > bound) b.vx += -Math.sign(b.x) * 0.12;
+            if (b.z < -bound || b.z > bound) b.vz += -Math.sign(b.z) * 0.12;
+            if (b.y < 10) b.vy += 0.12;
+            if (b.y > HEIGHT) b.vy -= 0.12;
+            var pulse = 0.75 + 0.55 * (Math.sin(flockTime * 0.035 + b.phase) + 1) * 0.5;
+            var maxSpeed = (1.5 + settings.speed * 0.34) * pulse;
+            limit(b, maxSpeed);
+            var currentSpeed = Math.sqrt(b.vx * b.vx + b.vy * b.vy + b.vz * b.vz);
+            var minSpeed = maxSpeed * 0.35;
+            if (currentSpeed && currentSpeed < minSpeed) {
+                b.vx *= minSpeed / currentSpeed; b.vy *= minSpeed / currentSpeed; b.vz *= minSpeed / currentSpeed;
+            }
+        }
+        for (var k = 0; k < birds.length; k++) {
+            birds[k].x += birds[k].vx; birds[k].y += birds[k].vy; birds[k].z += birds[k].vz;
+        }
+    }
+
+    function drawBase() {
+        var corners = [
+            rotate(-BASE_SIZE, 0, -BASE_SIZE), rotate(BASE_SIZE, 0, -BASE_SIZE),
+            rotate(BASE_SIZE, 0, BASE_SIZE), rotate(-BASE_SIZE, 0, BASE_SIZE)
+        ].map(project);
+        ctx.beginPath(); ctx.moveTo(corners[0].x, corners[0].y);
+        for (var i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
+        ctx.closePath(); ctx.fillStyle = "#000"; ctx.fill();
+        var edgeHeight = 16;
+        var edge = [
+            rotate(-BASE_SIZE, edgeHeight, -BASE_SIZE), rotate(BASE_SIZE, edgeHeight, -BASE_SIZE),
+            rotate(BASE_SIZE, edgeHeight, BASE_SIZE), rotate(-BASE_SIZE, edgeHeight, BASE_SIZE)
+        ].map(project);
+        ctx.beginPath(); ctx.moveTo(edge[0].x, edge[0].y);
+        for (var j = 1; j < 4; j++) ctx.lineTo(edge[j].x, edge[j].y);
+        ctx.closePath(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
+    }
+    function drawBirds() {
+        var projected = birds.map(function(b) { return { p: project(rotate(b.x, b.y, b.z)), b: b }; });
+        projected.sort(function(a, b) { return b.p.z - a.p.z; });
+        for (var i = 0; i < projected.length; i++) {
+            var item = projected[i], p = item.p, b = item.b, size = Math.max(1.5, 3 * p.scale);
+            ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+            ctx.beginPath(); ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - b.vx * p.scale * 3, p.y + b.vy * p.scale * 3);
+            ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.stroke();
+        }
+    }
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (settings.autoRotate && !camDragging) rotY += 0.002;
+        updateBirds(); drawBase(); drawBirds();
+        animationId = requestAnimationFrame(loop);
+        window.__homeCanvasAnimId = animationId;
+    }
+    window.__homeCanvasCleanup = function() {
+        if (animationId) cancelAnimationFrame(animationId);
+        window.removeEventListener("resize", resize);
+        canvas.removeEventListener("mousedown", onMouseDown);
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        canvas.removeEventListener("touchstart", onTouchStart);
+        document.removeEventListener("touchmove", onTouchMove);
+        document.removeEventListener("touchend", onMouseUp);
+    };
+    loop();
+})();
+</script>
