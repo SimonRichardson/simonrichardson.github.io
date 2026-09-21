@@ -14,6 +14,7 @@
                 <div class="settings-legend">Controls</div>
                 <label>Birds <input type="number" id="setting-birds" min="10" max="150" value="60"></label>
                 <label>Speed <input type="range" id="setting-speed" min="1" max="20" value="8"></label>
+                <label>Trail length <input type="range" id="setting-trail-length" min="1" max="256" value="48"></label>
                 <label><input type="checkbox" id="setting-autorotate" checked> Auto-rotate</label>
                 <button id="setting-apply">Apply</button>
                 <button id="setting-save">Save Image</button>
@@ -28,7 +29,7 @@
     if (!canvas) return;
     var ctx = canvas.getContext("2d");
     var settingsPanel = document.getElementById("settings-panel");
-    var settings = { birds: 60, speed: 8, autoRotate: true };
+    var settings = { birds: 60, speed: 8, trailLength: 48, autoRotate: true };
     var BASE_SIZE = 250, HEIGHT = 220, PERSPECTIVE = 800;
     var rotY = 0.45, rotX = -0.7, camDragging = false, lastMX = 0;
     var birds = [], animationId = null;
@@ -54,6 +55,14 @@
     }
     document.getElementById("setting-speed").addEventListener("input", function() {
         settings.speed = parseInt(this.value, 10) || 8;
+    });
+    document.getElementById("setting-trail-length").addEventListener("input", function() {
+        settings.trailLength = parseInt(this.value, 10) || 48;
+        for (var i = 0; i < birds.length; i++) {
+            if (birds[i].trail.length > settings.trailLength) {
+                birds[i].trail.splice(0, birds[i].trail.length - settings.trailLength);
+            }
+        }
     });
     document.getElementById("setting-autorotate").addEventListener("change", function() {
         settings.autoRotate = this.checked;
@@ -116,6 +125,7 @@
         // Five flock identities; roughly one in five birds is deliberately untethered.
         this.group = Math.random() < 0.2 ? -1 : Math.floor(Math.random() * 5);
         this.phase = Math.random() * Math.PI * 2;
+        this.trail = [];
     }
     function initBirds() {
         birds = [];
@@ -178,7 +188,11 @@
             }
         }
         for (var k = 0; k < birds.length; k++) {
-            birds[k].x += birds[k].vx; birds[k].y += birds[k].vy; birds[k].z += birds[k].vz;
+            var bird = birds[k];
+            bird.x += bird.vx; bird.y += bird.vy; bird.z += bird.vz;
+            // Store world positions, not screen positions, so trails rotate with the base.
+            bird.trail.push({ x: bird.x, y: bird.y, z: bird.z });
+            if (bird.trail.length > settings.trailLength) bird.trail.shift();
         }
     }
 
@@ -190,7 +204,7 @@
         ctx.beginPath(); ctx.moveTo(corners[0].x, corners[0].y);
         for (var i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
         ctx.closePath(); ctx.fillStyle = "#000"; ctx.fill();
-        var edgeHeight = 16;
+        var edgeHeight = 24;
         var edge = [
             rotate(-BASE_SIZE, edgeHeight, -BASE_SIZE), rotate(BASE_SIZE, edgeHeight, -BASE_SIZE),
             rotate(BASE_SIZE, edgeHeight, BASE_SIZE), rotate(-BASE_SIZE, edgeHeight, BASE_SIZE)
@@ -198,6 +212,21 @@
         ctx.beginPath(); ctx.moveTo(edge[0].x, edge[0].y);
         for (var j = 1; j < 4; j++) ctx.lineTo(edge[j].x, edge[j].y);
         ctx.closePath(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
+    }
+    function drawTrails() {
+        for (var i = 0; i < birds.length; i++) {
+            var trail = birds[i].trail;
+            for (var j = 1; j < trail.length; j++) {
+                var from = project(rotate(trail[j - 1].x, trail[j - 1].y, trail[j - 1].z));
+                var to = project(rotate(trail[j].x, trail[j].y, trail[j].z));
+                var fade = j / trail.length;
+                ctx.beginPath();
+                ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
+                ctx.strokeStyle = "rgba(255,255,255," + (fade * fade * 0.5).toFixed(3) + ")";
+                ctx.lineWidth = Math.max(0.5, to.scale);
+                ctx.stroke();
+            }
+        }
     }
     function drawBirds() {
         var projected = birds.map(function(b) { return { p: project(rotate(b.x, b.y, b.z)), b: b }; });
@@ -213,7 +242,7 @@
     function loop() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         if (settings.autoRotate && !camDragging) rotY += 0.002;
-        updateBirds(); drawBase(); drawBirds();
+        updateBirds(); drawBase(); drawTrails(); drawBirds();
         animationId = requestAnimationFrame(loop);
         window.__homeCanvasAnimId = animationId;
     }
