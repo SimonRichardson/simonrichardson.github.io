@@ -31,9 +31,7 @@
     #resume-viewer .resume-filter-label { display: block; margin-bottom: 5px; color: #c5c5c5; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     #resume-viewer .resume-tags { display: flex; flex-wrap: wrap; gap: 6px; }
     #resume-viewer .resume-tag { border: 1px solid rgba(255,255,255,.35); border-radius: 999px; background: transparent; color: #fff; cursor: pointer; font: inherit; font-size: .82rem; line-height: 1.15; padding: 5px 9px; }
-    #resume-viewer .resume-tag:hover, #resume-viewer .resume-tag[aria-pressed="true"] { background: #fff; border-color: #fff; color: #111; }
-    #resume-viewer .resume-tag.is-include { background: #d9f6e6; border-color: #d9f6e6; color: #103721; }
-    #resume-viewer .resume-tag.is-exclude { background: #ffdede; border-color: #ffdede; color: #571515; }
+    #resume-viewer .resume-tag:hover, #resume-viewer .resume-tag.is-include, #resume-viewer .resume-tag.is-exclude { background: hsl(var(--tag-hue) 58% 46% / .5); border-color: hsl(var(--tag-hue) 58% 56% / .8); }
     #resume-viewer .resume-results-meta { margin: 0 0 18px; color: #c5c5c5; font-size: .875rem; }
     #resume-viewer .resume-timeline { list-style: none; margin: 0; padding: 0; }
     #resume-viewer .resume-entry { display: grid; grid-template-columns: 132px 1fr; gap: 24px; padding: 0 0 27px; position: relative; }
@@ -46,8 +44,8 @@
     #resume-viewer .resume-summary { margin: 0 0 11px; color: #eeeeee; }
     #resume-viewer .resume-evidence { margin: 10px 0 0; color: #b9b9b9; font-size: .78rem; }
     #resume-viewer .resume-entry-tags { display: flex; flex-wrap: wrap; gap: 5px; }
-    #resume-viewer .resume-entry-tags button { border: 0; border-radius: 3px; background: rgba(255,255,255,.14); color: #fff; cursor: pointer; font: inherit; font-size: .74rem; padding: 3px 6px; }
-    #resume-viewer .resume-entry-tags button:hover { background: rgba(255,255,255,.3); }
+    #resume-viewer .resume-entry-tags button { border: 1px solid hsl(var(--tag-hue) 58% 56% / .8); border-radius: 999px; background: hsl(var(--tag-hue) 58% 46% / .5); color: #fff; cursor: pointer; font: inherit; font-size: .74rem; line-height: 1.15; padding: 4px 8px; }
+    #resume-viewer .resume-entry-tags button:hover { background: hsl(var(--tag-hue) 58% 56% / .72); border-color: hsl(var(--tag-hue) 58% 66%); }
     #resume-viewer .resume-empty { padding: 25px; background: rgba(255,255,255,.08); border-radius: 7px; color: #ddd; }
     @media (max-width: 760px) {
         #resume-viewer { padding: 115px 18px 62px; }
@@ -194,6 +192,11 @@
     function escapeHtml(value) { var node = document.createElement("span"); node.textContent = value; return node.innerHTML; }
     function tagsFor(item, key) { return Array.isArray(item[key]) ? item[key] : (item[key] ? [item[key]] : []); }
     function activeCount() { return Object.keys(selected.include).length + Object.keys(selected.exclude).length; }
+    function tagHue(value) {
+        var hash = 0;
+        for (var i = 0; i < value.length; i++) hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+        return Math.abs(hash) % 360;
+    }
     function activityDateRange() {
         var years = entries.map(function (item) { return item.date.slice(0, 4); }).sort();
         if (!years.length) return "";
@@ -216,7 +219,7 @@
         if (!filtered.length) { timeline.innerHTML = '<li class="resume-empty">No activities match those filters. Try clearing one or more tags.</li>'; return; }
         timeline.innerHTML = filtered.map(function (item) {
             var itemTags = groups.reduce(function (all, group) { return all.concat(tagsFor(item, group.key).map(function (tag) { return { key: group.key, tag: tag }; })); }, []);
-            return '<li class="resume-entry"><time class="resume-date" datetime="' + escapeHtml(item.date) + '">' + escapeHtml(formatDate(item.date)) + '</time><article class="resume-card"><h3>' + escapeHtml(item.unit_of_work) + '</h3><p class="resume-summary">' + escapeHtml(item.summary) + '</p><div class="resume-entry-tags">' + itemTags.map(function (itemTag) { return '<button type="button" data-filter="' + escapeHtml(makeFilterKey(itemTag.key, itemTag.tag)) + '">' + escapeHtml(itemTag.tag) + '</button>'; }).join("") + '</div>' + (item.evidence ? '<p class="resume-evidence">Evidence: ' + escapeHtml(item.evidence) + '</p>' : "") + '</article></li>';
+            return '<li class="resume-entry"><time class="resume-date" datetime="' + escapeHtml(item.date) + '">' + escapeHtml(formatDate(item.date)) + '</time><article class="resume-card"><h3>' + escapeHtml(item.unit_of_work) + '</h3><p class="resume-summary">' + escapeHtml(item.summary) + '</p><div class="resume-entry-tags">' + itemTags.map(function (itemTag) { var filterKey = makeFilterKey(itemTag.key, itemTag.tag); return '<button type="button" data-filter="' + escapeHtml(filterKey) + '" style="--tag-hue: ' + tagHue(filterKey) + '">' + escapeHtml(itemTag.tag) + '</button>'; }).join("") + '</div>' + (item.evidence ? '<p class="resume-evidence">Evidence: ' + escapeHtml(item.evidence) + '</p>' : "") + '</article></li>';
         }).join("");
         timeline.querySelectorAll("[data-filter]").forEach(function (button) { button.addEventListener("click", function () { toggleFilter(button.dataset.filter, "include"); }); });
     }
@@ -242,7 +245,7 @@
             entries.forEach(function (item) { tagsFor(item, group.key).forEach(function (tag) { tags[tag] = true; }); });
             var values = Object.keys(tags).sort(function (a, b) { return a.localeCompare(b); });
             if (!values.length) return "";
-            return '<div class="resume-filter-group"><span class="resume-filter-label">' + group.label + '</span><div class="resume-tags">' + values.map(function (tag) { var key = makeFilterKey(group.key, tag); var state = selected.include[key] ? "is-include" : (selected.exclude[key] ? "is-exclude" : ""); return '<button class="resume-tag ' + state + '" type="button" aria-pressed="' + Boolean(state) + '" data-filter="' + escapeHtml(key) + '">' + escapeHtml(tag) + '</button>'; }).join("") + '</div></div>';
+            return '<div class="resume-filter-group"><span class="resume-filter-label">' + group.label + '</span><div class="resume-tags">' + values.map(function (tag) { var key = makeFilterKey(group.key, tag); var state = selected.include[key] ? "is-include" : (selected.exclude[key] ? "is-exclude" : ""); return '<button class="resume-tag ' + state + '" type="button" aria-pressed="' + Boolean(state) + '" data-filter="' + escapeHtml(key) + '" style="--tag-hue: ' + tagHue(key) + '">' + escapeHtml(tag) + '</button>'; }).join("") + '</div></div>';
         }).join("");
         target.querySelectorAll("[data-filter]").forEach(function (button) { button.addEventListener("click", function () { toggleFilter(button.dataset.filter); }); });
     }
