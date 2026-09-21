@@ -33,6 +33,14 @@
     var BASE_SIZE = 250, HEIGHT = 220, PERSPECTIVE = 800;
     var rotY = 0.45, rotX = -0.7, camDragging = false, lastMX = 0;
     var birds = [], animationId = null;
+    var GROUP_COLOURS = [
+        { r: 255, g: 95, b: 120 }, { r: 75, g: 180, b: 255 },
+        { r: 125, g: 235, b: 155 }, { r: 255, g: 190, b: 70 },
+        { r: 205, g: 120, b: 255 }
+    ];
+    function groupColour(group) {
+        return group < 0 ? { r: 235, g: 235, b: 235 } : GROUP_COLOURS[group];
+    }
 
     function resize() {
         if (!canvas.parentElement) return;
@@ -126,6 +134,8 @@
         this.group = Math.random() < 0.2 ? -1 : Math.floor(Math.random() * 5);
         this.phase = Math.random() * Math.PI * 2;
         this.trail = [];
+        var colour = groupColour(this.group);
+        this.colour = { r: colour.r, g: colour.g, b: colour.b };
     }
     function initBirds() {
         birds = [];
@@ -141,6 +151,17 @@
         var split = (Math.sin(flockTime * 0.006) + 1) * 0.5;
         for (var i = 0; i < birds.length; i++) {
             var b = birds[i], count = 0, ax = 0, ay = 0, az = 0, cx = 0, cy = 0, cz = 0, sx = 0, sy = 0, sz = 0;
+            // At the point of convergence, birds can join another flock. Their colour
+            // is blended below, so a split reveals the new affiliations gradually.
+            if (b.group >= 0 && split < 0.12 && Math.random() < 0.004) {
+                var nextGroup = Math.floor(Math.random() * 4);
+                if (nextGroup >= b.group) nextGroup++;
+                b.group = nextGroup;
+            }
+            var desiredColour = groupColour(b.group);
+            b.colour.r += (desiredColour.r - b.colour.r) * 0.035;
+            b.colour.g += (desiredColour.g - b.colour.g) * 0.035;
+            b.colour.b += (desiredColour.b - b.colour.b) * 0.035;
             for (var j = 0; j < birds.length; j++) {
                 if (i === j) continue;
                 var o = birds[j], dx = o.x - b.x, dy = o.y - b.y, dz = o.z - b.z;
@@ -191,7 +212,10 @@
             var bird = birds[k];
             bird.x += bird.vx; bird.y += bird.vy; bird.z += bird.vz;
             // Store world positions, not screen positions, so trails rotate with the base.
-            bird.trail.push({ x: bird.x, y: bird.y, z: bird.z });
+            bird.trail.push({
+                x: bird.x, y: bird.y, z: bird.z,
+                colour: { r: bird.colour.r, g: bird.colour.g, b: bird.colour.b }
+            });
             if (bird.trail.length > settings.trailLength) bird.trail.shift();
         }
     }
@@ -222,7 +246,8 @@
                 var fade = j / trail.length;
                 ctx.beginPath();
                 ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
-                ctx.strokeStyle = "rgba(255,255,255," + (fade * fade * 0.5).toFixed(3) + ")";
+                var colour = trail[j].colour;
+                ctx.strokeStyle = "rgba(" + colour.r.toFixed(0) + "," + colour.g.toFixed(0) + "," + colour.b.toFixed(0) + "," + (fade * fade * 0.5).toFixed(3) + ")";
                 ctx.lineWidth = Math.max(0.5, to.scale);
                 ctx.stroke();
             }
@@ -233,7 +258,8 @@
         projected.sort(function(a, b) { return b.p.z - a.p.z; });
         for (var i = 0; i < projected.length; i++) {
             var item = projected[i], p = item.p, b = item.b, size = Math.max(1.5, 3 * p.scale);
-            ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff"; ctx.fill();
             ctx.beginPath(); ctx.moveTo(p.x, p.y);
             ctx.lineTo(p.x - b.vx * p.scale * 3, p.y + b.vy * p.scale * 3);
             ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.stroke();
