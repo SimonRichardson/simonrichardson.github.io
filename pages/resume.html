@@ -56,13 +56,14 @@
     .dark-mode #resume-viewer .resume-minimap-axis { color: #e0e0e0; }
     .dark-mode #resume-viewer .resume-minimap-track::before { background: rgba(224,224,224,.35); }
     @media (max-width: 760px) {
-        #resume-viewer { padding: 115px 18px 62px; }
+        #resume-viewer { left: 0; padding: 115px 18px 62px; }
         #resume-viewer .resume-filter-lists { grid-template-columns: repeat(2, 130px); }
-        #resume-viewer .resume-entry { grid-template-columns: 1fr; gap: 6px; padding-left: 22px; }
+        #resume-viewer .resume-entry { width: 100%; max-width: 100%; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-left: 22px; }
         #resume-viewer .resume-entry::before { left: 4px; top: 20px; bottom: -7px; }
         #resume-viewer .resume-entry::after { left: 0; top: 15px; }
         #resume-viewer .resume-date { text-align: left; }
-        #resume-viewer .resume-card { padding-left: 0; }
+        #resume-viewer .resume-card { max-width: 100%; padding-left: 0; overflow-wrap: anywhere; }
+        #resume-viewer .resume-entry-tags button { max-width: 100%; overflow-wrap: anywhere; }
     }
 </style>
 
@@ -291,13 +292,14 @@
             Array.prototype.forEach.call(list.options, function (option) {
                 var label = option.dataset.label || "";
                 if (!option.selected || !label || label.length * 7 <= availableWidth) {
-                    option.textContent = label;
+                    if (option.textContent !== label) option.textContent = label;
                     option.dataset.marqueeOffset = "0";
                     return;
                 }
                 var offset = Number(option.dataset.marqueeOffset || "0");
                 var loopedLabel = label + "     ";
-                option.textContent = loopedLabel.slice(offset) + loopedLabel.slice(0, offset) + label;
+                var marqueeLabel = loopedLabel.slice(offset) + loopedLabel.slice(0, offset) + label;
+                if (option.textContent !== marqueeLabel) option.textContent = marqueeLabel;
                 option.dataset.marqueeOffset = String((offset + 1) % loopedLabel.length);
             });
         });
@@ -305,7 +307,7 @@
     function startOptionMarquees() {
         if (optionMarqueeTimer) clearInterval(optionMarqueeTimer);
         updateOptionMarquees();
-        optionMarqueeTimer = setInterval(updateOptionMarquees, 180);
+        optionMarqueeTimer = setInterval(updateOptionMarquees, 360);
     }
     function renderFilters() {
         var target = document.getElementById("resume-filters");
