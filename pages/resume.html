@@ -16,6 +16,7 @@
     #resume-viewer .resume-intro { max-width: 720px; margin: 18px 0 28px; color: #d8d8d8; font-size: 1.05rem; }
     #resume-viewer .resume-status { margin: 0; color: #bfc7d8; font-size: .875rem; }
     #resume-viewer #settings-panel { width: min(320px, calc(100vw - 40px)); max-width: none; }
+    #resume-viewer #settings-panel.is-minimized { width: auto; }
     #resume-viewer #settings-body { overflow: visible; }
     #resume-viewer #settings-body .resume-clear { margin-top: 12px; }
     #resume-viewer #settings-body .resume-filter-label { color: #222; }
@@ -361,7 +362,9 @@
     minimapToggle.addEventListener("click", function () { setMinimapVisibility(!minimapPanel.hidden); });
     document.getElementById("settings-minimize").addEventListener("click", function () {
         var chrome = document.getElementById("settings-chrome");
-        chrome.style.display = chrome.style.display === "none" ? "flex" : "none";
+        var minimized = chrome.style.display !== "none";
+        chrome.style.display = minimized ? "none" : "flex";
+        settingsPanel.classList.toggle("is-minimized", minimized);
         if (window.__dockSystem) setTimeout(function () { window.__dockSystem.dock(); }, 0);
     });
     if (window.makeDraggable) window.makeDraggable("settings", settingsPanel, document.getElementById("settings-grab-track"));
